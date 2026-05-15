@@ -8,7 +8,7 @@ describe("llhToEcef", () => {
     expect(x).toBeCloseTo(6378137, 0);
     expect(y).toBeCloseTo(0, 3);
     expect(z).toBeCloseTo(0, 3);
-  });
+  });p
 
   it("matches a known reference point at the north pole", () => {
     const { x, y, z } = llhToEcef(90, 0, 0);
@@ -22,9 +22,11 @@ describe("llhToEcef", () => {
 describe("projectLonLat (EPSG:32635)", () => {
   it("projects an Athens-area lon/lat into UTM zone 35N metres", () => {
     const { x, y } = projectLonLat(23.7275, 37.9838, "EPSG:32635");
-    // Sanity: easting ~7e5, northing ~4.2e6 for zone 35N at ~38N.
-    expect(x).toBeGreaterThan(600_000);
-    expect(x).toBeLessThan(800_000);
+    // Athens is at ~23.73°E — about 3.3° west of the zone 35N central meridian
+    // (27°E), so easting is ~212 000 m (well below the false easting of 500 000).
+    // Northing at ~38°N is ~4.2 million m.
+    expect(x).toBeGreaterThan(150_000);
+    expect(x).toBeLessThan(300_000);
     expect(y).toBeGreaterThan(4_100_000);
     expect(y).toBeLessThan(4_300_000);
   });
