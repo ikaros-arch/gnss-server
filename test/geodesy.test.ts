@@ -8,7 +8,7 @@ describe("llhToEcef", () => {
     expect(x).toBeCloseTo(6378137, 0);
     expect(y).toBeCloseTo(0, 3);
     expect(z).toBeCloseTo(0, 3);
-  });p
+  });
 
   it("matches a known reference point at the north pole", () => {
     const { x, y, z } = llhToEcef(90, 0, 0);
