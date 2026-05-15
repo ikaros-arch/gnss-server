@@ -1,2 +1,175 @@
 # gnss-server
 
+Ingest NMEA from multiple GNSS antennas over TCP and stream normalized fixes
+(LLH + ECEF/XYZ + UTM + accuracy + RTK status) to a React SPA via **WebSocket**
+and a small **REST** API. Designed to run as a Docker container on a Linux
+x86-64 server or a Raspberry Pi (ARM64).
+
+> Status: **Phase 1 scaffold** — the service boots end-to-end (TCP listener,
+> REST `/api/health`, WebSocket `/ws`) and projects positions to the configured
+> CRS (default **EPSG:32635 — WGS84 / UTM zone 35N**). Subsequent phases harden
+> parsing, accuracy, and operational concerns. See [docs/PLAN.md](docs/PLAN.md)
+> and [docs/TODO.md](docs/TODO.md).
+
+---
+
+## Quick start (local dev)
+
+```bash
+npm install
+cp .env.example .env
+npm run dev
+```
+
+In another terminal, replay sample NMEA at the listener:
+
+```bash
+npm run replay                 # localhost:9100, 1 Hz, built-in sample
+# or replay a real log:
+npm run replay -- 127.0.0.1 9100 path/to/log.nmea 5
+```
+
+Verify:
+
+```bash
+curl http://localhost:9200/api/health
+curl http://localhost:9200/api/fixes
+```
+
+Open `scripts/test-client.html` in a browser to watch fixes stream over the
+WebSocket at `ws://localhost:9200/ws`.
+
+---
+
+## Quick start (Docker — target deployment)
+
+The service is **not** meant to run permanently on your dev laptop. To deploy
+on the Linux server / Raspberry Pi:
+
+```bash
+cp .env.example .env
+# edit .env if needed (ports, OUTPUT_CRS, LOG_LEVEL)
+docker compose up --build -d
+```
+
+Multi-arch image (build once, push to a registry, pull on the Pi):
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t YOUR_REGISTRY/gnss-server:0.1.0 \
+  --push .
+```
+
+Default exposed ports:
+
+| Port  | Proto | Purpose                           |
+|-------|-------|-----------------------------------|
+| 9100  | TCP   | NMEA ingestion (antennas dial in) |
+| 9200  | TCP   | REST + WebSocket (HTTP)           |
+
+---
+
+## Configuration
+
+All configuration is via environment variables (see `.env.example`):
+
+| Variable          | Default        | Notes                                                |
+|-------------------|----------------|------------------------------------------------------|
+| `TCP_PORT`        | `9100`         | NMEA listener port (inside container).               |
+| `HTTP_PORT`       | `9200`         | REST + WS port (inside container).                   |
+| `MAX_CONNECTIONS` | `16`           | Hard cap on concurrent antenna sockets.              |
+| `LOG_LEVEL`       | `info`         | pino level: `fatal`/`error`/`warn`/`info`/`debug`.   |
+| `OUTPUT_CRS`      | `EPSG:32635`   | Target CRS for projected `utm` field on each fix.    |
+| `ANTENNAS_FILE`   | _(unset)_      | Path to JSON map of `remoteIp` → `{id,label}`.       |
+
+### Antenna mapping
+
+If `ANTENNAS_FILE` is set, the listener uses the source IP of an incoming
+connection to resolve a stable `antennaId`. Otherwise it falls back to
+`ip:port`. See `config/antennas.example.json`.
+
+---
+
+## Fix schema (WS push & REST response)
+
+```jsonc
+{
+  "antennaId": "rover-1",
+  "receivedAt": "2026-05-15T12:34:56.210Z",
+  "utc": "123456.20",
+  "llh": { "lat": 37.97, "lon": 23.72, "altMsl": 78.4, "geoidSep": 41.2, "altEll": 119.6 },
+  "xyz": { "x": 4595280.1, "y": 2039473.7, "z": 3912648.9 },
+  "utm": { "x": 738123.45, "y": 4205678.90, "crs": "EPSG:32635" },
+  "accuracy": { "source": "GST", "sigmaLat": 0.012, "sigmaLon": 0.011, "sigmaAlt": 0.025 },
+  "fix":  { "quality": 4, "status": "RTK_FIXED", "satellites": 18, "hdop": 0.6 },
+  "conn": { "remoteIp": "192.168.1.42", "remotePort": 50211, "since": "...", "lastByteAt": "..." }
+}
+```
+
+WebSocket protocol on `/ws`:
+
+- On connect: server sends `{"type":"snapshot","fixes":[Fix,...]}`.
+- Per update: server sends `{"type":"fix","fix":Fix}`.
+
+---
+
+## REST endpoints
+
+| Method | Path                          | Returns                                     |
+|--------|-------------------------------|---------------------------------------------|
+| GET    | `/api/health`                 | uptime, output CRS, connected antenna count |
+| GET    | `/api/antennas`               | list of antennas with last-fix metadata     |
+| GET    | `/api/antennas/:id/last`      | the last `Fix` for the given antenna        |
+| GET    | `/api/fixes`                  | snapshot of all latest fixes                |
+
+---
+
+## Testing
+
+```bash
+npm test           # vitest, runs unit tests for checksum / NMEA / geodesy
+npm run test:watch
+```
+
+Manual end-to-end with the running container:
+
+```bash
+# in one terminal
+docker compose up
+# in another (uses the bundled replay script against the host port)
+npm run replay -- 127.0.0.1 9100
+curl http://127.0.0.1:9200/api/fixes
+# open scripts/test-client.html in a browser, point it at ws://HOST:9200/ws
+```
+
+---
+
+## Project layout
+
+```
+src/
+  config.ts            env parsing + antennas.json loader
+  index.ts             entry & wiring
+  nmea/                checksum, parseGGA, parseGST
+  geodesy/             wgs84 (ECEF) + proj (proj4 wrapper for OUTPUT_CRS)
+  store/               fixStore (in-memory latest-per-antenna)
+  tcp/                 TCP listener
+  rest/                fastify endpoints
+  ws/                  WebSocket hub
+test/                  vitest unit tests
+scripts/
+  replay-nmea.ts       TCP client to replay NMEA into the listener
+  test-client.html     minimal browser WS viewer
+config/
+  antennas.example.json
+docs/
+  PLAN.md              architecture + phased plan
+  TODO.md              live task list
+```
+
+---
+
+## License
+
+See `LICENSE`.

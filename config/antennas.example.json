@@ -1,0 +1,4 @@
+{
+  "192.168.1.42": { "id": "rover-1", "label": "North trench rover" },
+  "192.168.1.43": { "id": "rover-2", "label": "South trench rover" }
+}

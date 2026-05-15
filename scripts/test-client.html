@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>gnss-server WS test client</title>
+    <style>
+      body { font-family: ui-monospace, monospace; padding: 1rem; }
+      pre  { background: #111; color: #eee; padding: 1rem; max-height: 70vh; overflow: auto; }
+      input { width: 24rem; }
+    </style>
+  </head>
+  <body>
+    <h1>gnss-server WS test client</h1>
+    <label>WS URL: <input id="url" value="ws://localhost:9200/ws" /></label>
+    <button id="go">Connect</button>
+    <p id="status">disconnected</p>
+    <pre id="log"></pre>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let ws;
+      $("go").onclick = () => {
+        if (ws) ws.close();
+        ws = new WebSocket($("url").value);
+        ws.onopen = () => ($("status").textContent = "connected");
+        ws.onclose = () => ($("status").textContent = "disconnected");
+        ws.onerror = (e) => ($("status").textContent = "error");
+        ws.onmessage = (m) => {
+          const log = $("log");
+          log.textContent = m.data + "\n" + log.textContent;
+          if (log.textContent.length > 20000) log.textContent = log.textContent.slice(0, 20000);
+        };
+      };
+    </script>
+  </body>
+</html>
