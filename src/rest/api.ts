@@ -3,7 +3,7 @@ import type { Logger } from "pino";
 import type { FixStore } from "../store/fixStore.js";
 
 export function buildRest(store: FixStore, logger: Logger, outputCrs: string) {
-  const app = Fastify({ loggerInstance: logger as any });
+  const app = Fastify({ logger: logger as any });
 
   app.get("/api/health", async () => ({
     status: "ok",

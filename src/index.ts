@@ -1,4 +1,5 @@
 import pino from "pino";
+import type { Server } from "node:http";
 import { loadConfig } from "./config.js";
 import { FixStore } from "./store/fixStore.js";
 import { startTcpListener } from "./tcp/listener.js";
@@ -26,7 +27,7 @@ async function main() {
 
   const app = buildRest(store, logger.child({ mod: "rest" }), cfg.outputCrs);
   await app.listen({ port: cfg.httpPort, host: "0.0.0.0" });
-  attachWs(app.server, store, logger.child({ mod: "ws" }));
+  attachWs(app.server as Server, store, logger.child({ mod: "ws" }));
 
   const shutdown = async (sig: string) => {
     logger.info({ sig }, "shutting down");
