@@ -46,6 +46,24 @@ describe("parseGGA", () => {
     expect(fix!.lat).toBeCloseTo(36.9344, 3);
     expect(fix!.lon).toBeCloseTo(25.6017, 3);
   });
+
+  it("extracts diffAge and refStationId when present", () => {
+    // Field 13 = diff age (1.5 s), field 14 = ref station ID "0001"
+    const s = makeNmea("GPGGA,123519,4807.038,N,01131.000,E,4,08,0.9,545.4,M,46.9,M,1.5,0001");
+    const fix = parseGGA(s);
+    expect(fix).not.toBeNull();
+    expect(fix!.diffAge).toBeCloseTo(1.5);
+    expect(fix!.refStationId).toBe("0001");
+  });
+
+  it("leaves diffAge and refStationId absent when fields are empty", () => {
+    // Standard autonomous GGA — fields 13 and 14 are empty
+    const s = "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47";
+    const fix = parseGGA(s);
+    expect(fix).not.toBeNull();
+    expect(fix!.diffAge).toBeUndefined();
+    expect(fix!.refStationId).toBeUndefined();
+  });
 });
 
 // ── GST ─────────────────────────────────────────────────────────────────────

@@ -178,6 +178,8 @@ export function startTcpListener(opts: TcpListenerOptions) {
         satellites: gga.satellites,
         hdop: gga.hdop,
         ...gsaDops,
+        ...(gga.diffAge != null ? { diffAge: gga.diffAge } : {}),
+        ...(gga.refStationId ? { refStationId: gga.refStationId } : {}),
       },
       conn: {
         remoteIp: state.remoteIp,

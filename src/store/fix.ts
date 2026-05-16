@@ -24,6 +24,8 @@ export interface Fix {
     hdop: number;
     vdop?: number;
     pdop?: number;
+    diffAge?: number;      // seconds since last RTCM correction; absent for autonomous fixes
+    refStationId?: string; // base station identifier from the receiver
   };
   velocity?: {
     courseTrue: number;   // degrees from true north

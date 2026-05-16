@@ -34,6 +34,8 @@ export interface GgaFix {
   hdop: number;
   altMsl: number;       // metres
   geoidSep: number;     // metres (ellipsoidal = altMsl + geoidSep)
+  diffAge?: number;     // seconds since last RTCM correction (field 13)
+  refStationId?: string; // reference station ID (field 14)
 }
 
 function nmeaCoordToDeg(value: string, hemi: string): number {
@@ -67,6 +69,9 @@ export function parseGGA(sentence: string): GgaFix | null {
   const lon = nmeaCoordToDeg(f[4], f[5]);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
+  const diffAgeRaw = f[13] ? parseFloat(f[13]) : NaN;
+  const refId = f[14]?.trim() || undefined;
+
   return {
     utc: f[1] ?? "",
     lat,
@@ -77,5 +82,7 @@ export function parseGGA(sentence: string): GgaFix | null {
     hdop: parseFloat(f[8] ?? "0") || 0,
     altMsl: parseFloat(f[9] ?? "0") || 0,
     geoidSep: parseFloat(f[11] ?? "0") || 0,
+    ...(Number.isFinite(diffAgeRaw) ? { diffAge: diffAgeRaw } : {}),
+    ...(refId ? { refStationId: refId } : {}),
   };
 }
