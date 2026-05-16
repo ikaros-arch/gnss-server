@@ -35,6 +35,7 @@ interface ConnState {
   remotePort: number;
   since: string;
   buffer: string;
+  label?: string;
   lastGst?: ReturnType<typeof parseGST>;
   lastGsa?: ReturnType<typeof parseGSA>;
   lastRmcDate?: string; // YYYY-MM-DD
@@ -63,6 +64,7 @@ export function startTcpListener(opts: TcpListenerOptions) {
       remotePort,
       since: new Date().toISOString(),
       buffer: "",
+      label: mapped?.label,
     };
     const log = logger.child({ antennaId, remoteIp, remotePort });
     log.info("antenna connected");
@@ -162,7 +164,7 @@ export function startTcpListener(opts: TcpListenerOptions) {
 
     const fix: Fix = {
       antennaId,
-      ...(mapped?.label ? { label: mapped.label } : {}),
+      ...(state.label ? { label: state.label } : {}),
       receivedAt: new Date().toISOString(),
       utc: gga.utc,
       ...(state.lastRmcDate ? { utcDate: state.lastRmcDate } : {}),
