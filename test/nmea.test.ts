@@ -3,6 +3,9 @@ import { parseGGA } from "../src/nmea/parseGGA.js";
 import { parseGST } from "../src/nmea/parseGST.js";
 import { parseGSA } from "../src/nmea/parseGSA.js";
 import { parseRMC } from "../src/nmea/parseRMC.js";
+import { parseVTG } from "../src/nmea/parseVTG.js";
+
+// ── GGA ─────────────────────────────────────────────────────────────────────
 
 describe("parseGGA", () => {
   it("parses a fixed GGA into decimal degrees", () => {
@@ -21,7 +24,24 @@ describe("parseGGA", () => {
     const s = "$GPGGA,123519,,,,,0,00,99.9,,M,,M,,*48";
     expect(parseGGA(s)).toBeNull();
   });
+
+  it("returns null for bad checksum", () => {
+    const s = "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*FF";
+    expect(parseGGA(s)).toBeNull();
+  });
+
+  it("accepts GN-talker GGA (multi-constellation)", () => {
+    // GNGGA uses the GN talker prefix — parser must accept /GGA$/ not just GPGGA.
+    const s = "$GNGGA,083206,3656.0659,N,02536.1030,E,4,13,1.0,9.487,M,36.785,M,,*4D";
+    const fix = parseGGA(s);
+    expect(fix).not.toBeNull();
+    expect(fix!.status).toBe("RTK_FIXED");
+    expect(fix!.lat).toBeCloseTo(36.9344, 3);
+    expect(fix!.lon).toBeCloseTo(25.6017, 3);
+  });
 });
+
+// ── GST ─────────────────────────────────────────────────────────────────────
 
 describe("parseGST", () => {
   it("extracts sigma values", () => {
@@ -33,7 +53,22 @@ describe("parseGST", () => {
       expect(gst.sigmaAlt).toBeCloseTo(18.3, 2);
     }
   });
+
+  it("returns null for bad checksum", () => {
+    expect(parseGST("$GPGST,182141.000,15.5,15.2,17.0,33.7,14.8,16.5,18.3*00")).toBeNull();
+  });
+
+  it("accepts GN-talker GST", () => {
+    const s = "$GNGST,083206,0.04,0.02,0.01,0.00,0.22,0.61,1.10*53";
+    const gst = parseGST(s);
+    expect(gst).not.toBeNull();
+    expect(gst!.sigmaLat).toBeCloseTo(0.22, 3);
+    expect(gst!.sigmaLon).toBeCloseTo(0.61, 3);
+    expect(gst!.sigmaAlt).toBeCloseTo(1.10, 3);
+  });
 });
+
+// ── GSA ─────────────────────────────────────────────────────────────────────
 
 describe("parseGSA", () => {
   it("extracts DOPs and fix type from a 3D fix", () => {
@@ -54,7 +89,13 @@ describe("parseGSA", () => {
     const s = "$GPGSA,A,1,,,,,,,,,,,,,,,*1E";
     expect(parseGSA(s)).toBeNull();
   });
+
+  it("returns null for bad checksum", () => {
+    expect(parseGSA("$GPGSA,A,3,04,05,,,,,,,,,,,,3.6,2.1,2.2*00")).toBeNull();
+  });
 });
+
+// ── RMC ─────────────────────────────────────────────────────────────────────
 
 describe("parseRMC", () => {
   it("parses an active RMC sentence and derives ISO date", () => {
@@ -71,5 +112,38 @@ describe("parseRMC", () => {
   it("returns null for void (V) status", () => {
     const s = "$GPRMC,123519,V,,,,,,,230394,,*21";
     expect(parseRMC(s)).toBeNull();
+  });
+
+  it("returns null for bad checksum", () => {
+    expect(parseRMC("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,,*00")).toBeNull();
+  });
+
+  it("handles 21st-century dates correctly", () => {
+    const s = "$GNRMC,083206,A,3656.0659,N,02536.1030,E,0.1,0.0,160526,,*2A";
+    const rmc = parseRMC(s);
+    expect(rmc).not.toBeNull();
+    expect(rmc!.isoDate).toBe("2026-05-16");
+  });
+});
+
+// ── VTG ─────────────────────────────────────────────────────────────────────
+
+describe("parseVTG", () => {
+  it("extracts course and speed", () => {
+    const s = "$GPVTG,054.7,T,034.4,M,022.4,N,041.5,K,A*27";
+    const vtg = parseVTG(s);
+    expect(vtg).not.toBeNull();
+    expect(vtg!.courseTrueNorth).toBeCloseTo(54.7, 2);
+    expect(vtg!.speedKnots).toBeCloseTo(22.4, 2);
+    expect(vtg!.speedKmh).toBeCloseTo(41.5, 2);
+  });
+
+  it("returns null when FAA mode is N (invalid)", () => {
+    const s = "$GPVTG,,,,,,,,,N*30";
+    expect(parseVTG(s)).toBeNull();
+  });
+
+  it("returns null for bad checksum", () => {
+    expect(parseVTG("$GPVTG,054.7,T,034.4,M,022.4,N,041.5,K,A*00")).toBeNull();
   });
 });

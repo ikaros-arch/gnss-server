@@ -96,16 +96,39 @@ connection to resolve a stable `antennaId`. Otherwise it falls back to
 ```jsonc
 {
   "antennaId": "rover-1",
+  "label": "North trench rover",
   "receivedAt": "2026-05-15T12:34:56.210Z",
   "utc": "123456.20",
+  "utcDate": "2026-05-15",
   "llh": { "lat": 37.97, "lon": 23.72, "altMsl": 78.4, "geoidSep": 41.2, "altEll": 119.6 },
-  "xyz": { "x": 4595280.1, "y": 2039473.7, "z": 3912648.9 },
-  "utm": { "x": 738123.45, "y": 4205678.90, "crs": "EPSG:32635" },
+  "xyz": { "x": 4595280.1, "y": 2039473.7, "z": 3912648.9, "sigmaX": 0.01, "sigmaY": 0.01, "sigmaZ": 0.02 },
+  "utm": { "x": 738123.45, "y": 4205678.90, "crs": "EPSG:32635", "sigmaE": 0.01, "sigmaN": 0.01 },
   "accuracy": { "source": "GST", "sigmaLat": 0.012, "sigmaLon": 0.011, "sigmaAlt": 0.025 },
-  "fix":  { "quality": 4, "status": "RTK_FIXED", "satellites": 18, "hdop": 0.6 },
+  "fix":  { "quality": 4, "status": "RTK_FIXED", "satellites": 18, "hdop": 0.6, "vdop": 1.1, "pdop": 1.3 },
+  "velocity": { "courseTrue": 54.7, "speedKnots": 0.1, "speedKmh": 0.2 },
   "conn": { "remoteIp": "192.168.1.42", "remotePort": 50211, "since": "...", "lastByteAt": "..." }
 }
 ```
+
+### GGA fix quality codes
+
+The `fix.quality` integer and `fix.status` string are derived from the GGA sentence. The mapping is
+standardised by NMEA 0183 and consistent across Trimble, Leica, Emlid Reach, u-blox, and Septentrio receivers:
+
+| `quality` | `status`       | Meaning                                              |
+|-----------|----------------|------------------------------------------------------|
+| 0         | `NONE`         | No fix (sentence dropped — not forwarded to clients) |
+| 1         | `GPS`          | Autonomous GNSS fix                                  |
+| 2         | `DGPS`         | Differential GNSS (SBAS / DGNSS corrections)         |
+| 3         | `PPS`          | PPS fix                                              |
+| 4         | `RTK_FIXED`    | RTK integer fix — centimetre-level accuracy          |
+| 5         | `RTK_FLOAT`    | RTK float fix — decimetre-level accuracy             |
+| 6         | `ESTIMATED`    | Dead-reckoning                                       |
+| 7         | `MANUAL`       | Manual input                                         |
+| 8         | `SIMULATION`   | Simulation mode                                      |
+
+> Both `quality` (raw int) and `status` (named string) are present in every fix so the SPA can handle
+> unexpected vendor-specific codes gracefully via the integer.
 
 WebSocket protocol on `/ws`:
 

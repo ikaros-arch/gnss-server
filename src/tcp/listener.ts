@@ -4,6 +4,7 @@ import { parseGGA } from "../nmea/parseGGA.js";
 import { parseGST } from "../nmea/parseGST.js";
 import { parseGSA } from "../nmea/parseGSA.js";
 import { parseRMC } from "../nmea/parseRMC.js";
+import { parseVTG } from "../nmea/parseVTG.js";
 import { llhToEcef, propagateSigmaToEcef } from "../geodesy/wgs84.js";
 import { projectLonLat } from "../geodesy/proj.js";
 import type { FixStore } from "../store/fixStore.js";
@@ -32,6 +33,7 @@ interface ConnState {
   lastGst?: ReturnType<typeof parseGST>;
   lastGsa?: ReturnType<typeof parseGSA>;
   lastRmcDate?: string; // YYYY-MM-DD
+  lastVtg?: ReturnType<typeof parseVTG>;
 }
 
 export function startTcpListener(opts: TcpListenerOptions) {
@@ -100,6 +102,11 @@ export function startTcpListener(opts: TcpListenerOptions) {
       if (rmc) state.lastRmcDate = rmc.isoDate;
       return;
     }
+    if (/VTG[,$*]/.test(line)) {
+      const vtg = parseVTG(line);
+      if (vtg) state.lastVtg = vtg;
+      return;
+    }
     if (!/GGA,/.test(line)) return;
 
     const gga = parseGGA(line);
@@ -147,6 +154,7 @@ export function startTcpListener(opts: TcpListenerOptions) {
 
     const fix: Fix = {
       antennaId,
+      ...(mapped?.label ? { label: mapped.label } : {}),
       receivedAt: new Date().toISOString(),
       utc: gga.utc,
       ...(state.lastRmcDate ? { utcDate: state.lastRmcDate } : {}),
@@ -167,6 +175,9 @@ export function startTcpListener(opts: TcpListenerOptions) {
         since: state.since,
         lastByteAt: new Date().toISOString(),
       },
+      ...(state.lastVtg
+        ? { velocity: { courseTrue: state.lastVtg.courseTrueNorth, speedKnots: state.lastVtg.speedKnots, speedKmh: state.lastVtg.speedKmh } }
+        : {}),
     };
     store.set(fix);
   }

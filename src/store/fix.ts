@@ -4,6 +4,7 @@ import type { ProjectedXY } from "../geodesy/proj.js";
 
 export interface Fix {
   antennaId: string;
+  label?: string;            // human-readable label from antennas.json
   receivedAt: string;        // ISO timestamp the server stamped on receipt
   utc: string;               // hhmmss(.sss) from GGA
   utcDate?: string;          // YYYY-MM-DD from RMC (absent until first RMC received)
@@ -23,6 +24,11 @@ export interface Fix {
     hdop: number;
     vdop?: number;
     pdop?: number;
+  };
+  velocity?: {
+    courseTrue: number;   // degrees from true north
+    speedKnots: number;
+    speedKmh: number;
   };
   conn: {
     remoteIp: string;

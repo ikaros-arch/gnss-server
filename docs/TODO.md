@@ -28,9 +28,9 @@ the relevant phase. Keep the order roughly chronological.
 - [x] Sigma propagation lat/lon/alt → X/Y/Z (ENU rotation, `propagateSigmaToEcef`)
 - [x] Sigma propagation lat/lon → UTM easting/northing (`sigmaE`, `sigmaN` on `utm`)
 - [x] Fallback `accuracy.source = "ESTIMATED"` from HDOP/VDOP when GST is missing
-- [ ] Document quality-code mapping per receiver vendor in README
-- [ ] Fixture files in `test/fixtures/` (real recorded streams)
-- [ ] Tests: malformed/checksum-failure handling, multi-talker (`GN*` vs `GP*`)
+- [x] Document quality-code mapping per receiver vendor in README
+- [x] Fixture files in `test/fixtures/` (real recorded streams — `sample.nmea`, `rtk-float.nmea`)
+- [x] Tests: malformed/checksum-failure handling, multi-talker (`GN*` vs `GP*`)
 
 ## Phase 3 — Operational hardening
 
