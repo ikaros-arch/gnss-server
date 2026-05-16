@@ -188,11 +188,8 @@
         ws.onopen = () => {
           setStatus("connected", "ok");
           $("btn-all").style.display = "none";
-          loadHealth();
-          setInterval(loadHealth, 10_000);
           setInterval(refreshCards, 2_000);
           initRestPanel();
-          setInterval(refreshRestPanel, 5_000);
         };
         ws.onclose = () => setStatus("disconnected", "err");
         ws.onerror = () => setStatus("error", "err");
@@ -206,22 +203,12 @@
         if (cls === "err") $("health-bar").style.display = "none";
       }
 
-      // ── health poll ───────────────────────────────────────────────────────
-      async function loadHealth() {
-        // Derive count and CRS from WS fix data — works even from file:// origin.
+      // ── health bar (driven by WS data only) ──────────────────────────────
+      function updateHealthBar() {
         const ids = Object.keys(fixes);
-        if (ids.length) {
-          $("h-count").textContent = ids.length;
-          $("h-crs").textContent = fixes[ids[0]].utm.crs;
-        }
-        // Uptime is only available via REST; fails silently if CORS blocks it
-        // (e.g. when opening this file directly from disk).
-        try {
-          const h = await fetch(baseUrl + "/api/health").then(r => r.json());
-          $("h-uptime").textContent = fmtUptime(h.uptime);
-          $("h-count").textContent = h.antennas;
-          $("h-crs").textContent = h.outputCrs;
-        } catch {}
+        if (!ids.length) return;
+        $("h-count").textContent = ids.length;
+        $("h-crs").textContent = fixes[ids[0]].utm.crs;
       }
 
       // ── WS messages ───────────────────────────────────────────────────────
@@ -235,7 +222,7 @@
           fixes[msg.fix.antennaId] = msg.fix;
         }
         appendLog(ev.data);
-        loadHealth();
+        updateHealthBar();
         renderCards();
         if (selectedId && fixes[selectedId]) renderDetail(fixes[selectedId]);
       }
@@ -409,7 +396,14 @@
           const text = await res.text();
           // pretty-print if JSON
           let pretty = text;
-          try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch {}
+          try {
+            const parsed = JSON.parse(text);
+            pretty = JSON.stringify(parsed, null, 2);
+            // Populate uptime in the health bar when /api/health is fetched.
+            if (path === "/api/health" && parsed.uptime != null) {
+              $("h-uptime").textContent = fmtUptime(parsed.uptime);
+            }
+          } catch {}
           bodyEl.textContent = pretty;
           metaEl.innerHTML = `<span class="rest-ok">${res.status} OK</span> <span style="color:#64748b">${ms}ms · ${new Date().toLocaleTimeString()}</span>`;
         } catch (err) {
@@ -420,7 +414,7 @@
       }
 
       function refreshRestPanel() {
-        // Only auto-refresh endpoints whose body panel is open.
+        // Called only on explicit user action (Refresh button or panel open).
         for (const ep of REST_ENDPOINTS) {
           const bodyEl = $("rb-" + ep.path);
           if (bodyEl && bodyEl.classList.contains("open")) fetchEndpoint(ep.path);
