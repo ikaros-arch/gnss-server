@@ -38,7 +38,8 @@ describe("parseGST", () => {
 describe("parseGSA", () => {
   it("extracts DOPs and fix type from a 3D fix", () => {
     // 12 SV slots (f[3..14]): 4 filled + 8 empty, then PDOP/HDOP/VDOP at f[15..17].
-    const s = "$GPGSA,A,3,04,05,09,12,,,,,,,,3.6,2.1,2.2*13";
+    // 9 commas after "12" = 8 empty fields + separator before PDOP.
+    const s = "$GPGSA,A,3,04,05,09,12,,,,,,,,,3.6,2.1,2.2*3F";
     const gsa = parseGSA(s);
     expect(gsa).not.toBeNull();
     expect(gsa!.fixType).toBe(3);
