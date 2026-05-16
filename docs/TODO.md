@@ -43,7 +43,8 @@ the relevant phase. Keep the order roughly chronological.
 ## Phase 4 — Deployment polish
 
 - [ ] CI workflow: test + buildx multi-arch
-- [ ] Push image `gnss-server:0.1.0` to registry
-- [ ] `compose.prod.yml` overlay (memory/CPU limits, log rotation)
-- [ ] Pi smoke test against a real antenna
-- [ ] Optional: systemd unit for non-Docker installs
+- [x] `compose.prod.yml` overlay (memory/CPU limits, log rotation)
+- [x] Tag image `gnss-server:0.1.0` in docker-compose.yml
+- [x] Pi smoke test against real antennas (3 × Emlid RS, live in production)
+- [x] ~~Push image to registry~~ — builds on server directly; no registry needed
+- [x] ~~systemd unit~~ — not needed; Docker restart policy covers this

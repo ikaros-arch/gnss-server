@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: gnss-server:local
+    image: gnss-server:0.1.0
     restart: unless-stopped
     env_file:
       - .env
