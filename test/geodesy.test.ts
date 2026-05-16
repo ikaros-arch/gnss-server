@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { llhToEcef } from "../src/geodesy/wgs84.js";
+import { llhToEcef, propagateSigmaToEcef } from "../src/geodesy/wgs84.js";
 import { projectLonLat } from "../src/geodesy/proj.js";
 
 describe("llhToEcef", () => {
@@ -29,5 +29,24 @@ describe("projectLonLat (EPSG:32635)", () => {
     expect(x).toBeLessThan(300_000);
     expect(y).toBeGreaterThan(4_100_000);
     expect(y).toBeLessThan(4_300_000);
+  });
+});
+
+describe("propagateSigmaToEcef", () => {
+  it("at the equator/prime meridian, east error maps entirely to Y, north to Z, up to X", () => {
+    // At lat=0, lon=0: ENU axes align such that:
+    //   E → +Y,  N → +Z,  U → +X
+    const s = propagateSigmaToEcef(0, 0, 1, 0, 0); // 1 m east error only
+    expect(s.sigmaX).toBeCloseTo(0, 6);
+    expect(s.sigmaY).toBeCloseTo(1, 6);
+    expect(s.sigmaZ).toBeCloseTo(0, 6);
+  });
+
+  it("combined errors satisfy sigma_total >= each component", () => {
+    const { sigmaX, sigmaY, sigmaZ } = propagateSigmaToEcef(37.9, 25.6, 0.88, 0.22, 0.87);
+    const total = Math.sqrt(sigmaX ** 2 + sigmaY ** 2 + sigmaZ ** 2);
+    const inputTotal = Math.sqrt(0.88 ** 2 + 0.22 ** 2 + 0.87 ** 2);
+    // The RSS of ECEF sigmas must equal the RSS of ENU sigmas (rotation preserves norms).
+    expect(total).toBeCloseTo(inputTotal, 6);
   });
 });

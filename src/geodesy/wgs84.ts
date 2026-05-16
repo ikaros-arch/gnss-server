@@ -27,3 +27,42 @@ export function llhToEcef(latDeg: number, lonDeg: number, h: number): ECEF {
   const z = (N * (1 - E2) + h) * sinLat;
   return { x, y, z };
 }
+
+export interface SigmaEcef {
+  sigmaX: number;
+  sigmaY: number;
+  sigmaZ: number;
+}
+
+/**
+ * Propagate 1-sigma ENU position errors to ECEF, assuming the three ENU
+ * components are uncorrelated (valid for typical GNSS outputs).
+ *
+ *   sigmaE = sigmaLon (east,  metres from GST)
+ *   sigmaN = sigmaLat (north, metres from GST)
+ *   sigmaU = sigmaAlt (up,    metres from GST)
+ *
+ * The rotation matrix R from ENU → ECEF at (lat, lon) gives:
+ *   dX = -sinLon·dE - sinLat·cosLon·dN + cosLat·cosLon·dU
+ *   dY =  cosLon·dE - sinLat·sinLon·dN + cosLat·sinLon·dU
+ *   dZ =              cosLat·dN         + sinLat·dU
+ */
+export function propagateSigmaToEcef(
+  latDeg: number,
+  lonDeg: number,
+  sigmaE: number,
+  sigmaN: number,
+  sigmaU: number,
+): SigmaEcef {
+  const lat = (latDeg * Math.PI) / 180;
+  const lon = (lonDeg * Math.PI) / 180;
+  const sinLat = Math.sin(lat);
+  const cosLat = Math.cos(lat);
+  const sinLon = Math.sin(lon);
+  const cosLon = Math.cos(lon);
+  return {
+    sigmaX: Math.sqrt((sinLon * sigmaE) ** 2 + (sinLat * cosLon * sigmaN) ** 2 + (cosLat * cosLon * sigmaU) ** 2),
+    sigmaY: Math.sqrt((cosLon * sigmaE) ** 2 + (sinLat * sinLon * sigmaN) ** 2 + (cosLat * sinLon * sigmaU) ** 2),
+    sigmaZ: Math.sqrt((cosLat * sigmaN) ** 2 + (sinLat * sigmaU) ** 2),
+  };
+}

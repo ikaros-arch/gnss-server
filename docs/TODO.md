@@ -18,16 +18,16 @@ the relevant phase. Keep the order roughly chronological.
 - [x] Browser test client (`scripts/test-client.html`)
 - [x] Basic unit tests (checksum, GGA, WGS84, UTM)
 - [x] Docs: `README.md`, `docs/PLAN.md`, `docs/TODO.md`, `.github/copilot-instructions.md`
-- [ ] **Verify locally**: `npm install && npm test && npm run dev` + replay + curl + open test-client
-- [ ] **Verify in Docker**: `docker compose up --build` on the dev box
-- [ ] Add `package-lock.json` to repo (after first `npm install`)
+- [x] **Verify locally**: `npm install && npm test && npm run dev` + replay + curl + open test-client
+- [x] **Verify in Docker**: `docker compose up --build` + real device fix received
+- [x] Add `package-lock.json` to repo (after first `npm install`)
 
 ## Phase 2 — Hardened parsing & accuracy
 
-- [ ] `parseGSA`, `parseRMC`, `parseVTG`
-- [ ] Sigma propagation lat/lon/alt → X/Y/Z (ENU rotation)
-- [ ] Sigma propagation lat/lon → UTM easting/northing
-- [ ] Fallback `accuracy.source = "ESTIMATED"` from HDOP when GST is missing
+- [x] `parseGSA`, `parseRMC`, `parseVTG`
+- [x] Sigma propagation lat/lon/alt → X/Y/Z (ENU rotation, `propagateSigmaToEcef`)
+- [x] Sigma propagation lat/lon → UTM easting/northing (`sigmaE`, `sigmaN` on `utm`)
+- [x] Fallback `accuracy.source = "ESTIMATED"` from HDOP/VDOP when GST is missing
 - [ ] Document quality-code mapping per receiver vendor in README
 - [ ] Fixture files in `test/fixtures/` (real recorded streams)
 - [ ] Tests: malformed/checksum-failure handling, multi-talker (`GN*` vs `GP*`)
