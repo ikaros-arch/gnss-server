@@ -5,6 +5,13 @@ import { parseGSA } from "../src/nmea/parseGSA.js";
 import { parseRMC } from "../src/nmea/parseRMC.js";
 import { parseVTG } from "../src/nmea/parseVTG.js";
 
+/** Build a valid NMEA sentence from a body string by computing the checksum. */
+function makeNmea(body: string): string {
+  let cs = 0;
+  for (let i = 0; i < body.length; i++) cs ^= body.charCodeAt(i);
+  return `$${body}*${cs.toString(16).toUpperCase().padStart(2, "0")}`;
+}
+
 // ── GGA ─────────────────────────────────────────────────────────────────────
 
 describe("parseGGA", () => {
@@ -32,7 +39,7 @@ describe("parseGGA", () => {
 
   it("accepts GN-talker GGA (multi-constellation)", () => {
     // GNGGA uses the GN talker prefix — parser must accept /GGA$/ not just GPGGA.
-    const s = "$GNGGA,083206,3656.0659,N,02536.1030,E,4,13,1.0,9.487,M,36.785,M,,*4D";
+    const s = makeNmea("GNGGA,083206,3656.0659,N,02536.1030,E,4,13,1.0,9.487,M,36.785,M,,");
     const fix = parseGGA(s);
     expect(fix).not.toBeNull();
     expect(fix!.status).toBe("RTK_FIXED");
@@ -59,7 +66,7 @@ describe("parseGST", () => {
   });
 
   it("accepts GN-talker GST", () => {
-    const s = "$GNGST,083206,0.04,0.02,0.01,0.00,0.22,0.61,1.10*53";
+    const s = makeNmea("GNGST,083206,0.04,0.02,0.01,0.00,0.22,0.61,1.10");
     const gst = parseGST(s);
     expect(gst).not.toBeNull();
     expect(gst!.sigmaLat).toBeCloseTo(0.22, 3);
@@ -119,7 +126,7 @@ describe("parseRMC", () => {
   });
 
   it("handles 21st-century dates correctly", () => {
-    const s = "$GNRMC,083206,A,3656.0659,N,02536.1030,E,0.1,0.0,160526,,*2A";
+    const s = makeNmea("GNRMC,083206,A,3656.0659,N,02536.1030,E,0.1,0.0,160526,,");
     const rmc = parseRMC(s);
     expect(rmc).not.toBeNull();
     expect(rmc!.isoDate).toBe("2026-05-16");
@@ -130,7 +137,7 @@ describe("parseRMC", () => {
 
 describe("parseVTG", () => {
   it("extracts course and speed", () => {
-    const s = "$GPVTG,054.7,T,034.4,M,022.4,N,041.5,K,A*27";
+    const s = makeNmea("GPVTG,054.7,T,034.4,M,022.4,N,041.5,K,A");
     const vtg = parseVTG(s);
     expect(vtg).not.toBeNull();
     expect(vtg!.courseTrueNorth).toBeCloseTo(54.7, 2);
