@@ -70,8 +70,15 @@ docs/                  PLAN.md, TODO.md
 - **Don't run the service on the dev box for prod-like tests** — use
   `docker compose up --build`. Targets are Linux x86-64 and Raspberry Pi
   (ARM64); use `docker buildx --platform linux/amd64,linux/arm64` for releases.
+- **`npm install` and `npm test` are run by the user on the server, not on the
+  local dev machine.** `node_modules` is absent locally so TS errors about
+  missing type declarations (e.g. `node:net`, `pino`, `vitest`) are expected
+  in the IDE and should not be treated as real errors. Do not attempt to run
+  `npm install` or `npm test` locally.
 
 ## Common commands
+
+> **Have the user run these on the server, not the local dev machine** (no `node_modules` locally).
 
 ```bash
 npm install
