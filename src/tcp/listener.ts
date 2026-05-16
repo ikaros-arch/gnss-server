@@ -16,9 +16,14 @@ import type { AntennaMap } from "../config.js";
 const HDOP_URA_M = 3.0;
 const VDOP_URA_M = 4.5; // slightly worse in vertical
 
+// Maximum bytes allowed in the per-connection line buffer before it is flushed.
+// Protects against a misbehaving peer that never sends newlines.
+const MAX_LINE_BYTES = 2048;
+
 export interface TcpListenerOptions {
   port: number;
   maxConnections: number;
+  idleTimeoutMs: number;
   outputCrs: string;
   antennas: AntennaMap;
   store: FixStore;
@@ -37,7 +42,7 @@ interface ConnState {
 }
 
 export function startTcpListener(opts: TcpListenerOptions) {
-  const { port, maxConnections, outputCrs, antennas, store, logger } = opts;
+  const { port, maxConnections, idleTimeoutMs, outputCrs, antennas, store, logger } = opts;
 
   const server = createServer((socket) => {
     if ((server as any).connections > maxConnections) {
@@ -63,9 +68,9 @@ export function startTcpListener(opts: TcpListenerOptions) {
     log.info("antenna connected");
 
     socket.setEncoding("utf8");
-    socket.setTimeout(30_000);
+    socket.setTimeout(idleTimeoutMs);
     socket.on("timeout", () => {
-      log.warn("socket idle timeout");
+      log.warn({ idleTimeoutMs }, "socket idle timeout");
       socket.destroy();
     });
     socket.on("error", (err) => log.warn({ err: err.message }, "socket error"));
@@ -79,8 +84,11 @@ export function startTcpListener(opts: TcpListenerOptions) {
         state.buffer = state.buffer.slice(idx + 1);
         if (line) handleLine(line, state, antennaId, log);
       }
-      // Cap buffer to prevent runaway memory if peer never sends newline.
-      if (state.buffer.length > 4096) state.buffer = state.buffer.slice(-1024);
+      // Drop the buffer if a single overlong "line" arrives (malformed/non-NMEA peer).
+      if (state.buffer.length > MAX_LINE_BYTES) {
+        log.warn({ len: state.buffer.length }, "line buffer overflow, flushing");
+        state.buffer = "";
+      }
     });
   }
 

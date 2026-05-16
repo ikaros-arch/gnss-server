@@ -8,7 +8,10 @@ import { attachWs } from "./ws/hub.js";
 
 async function main() {
   const cfg = loadConfig();
-  const logger = pino({ level: cfg.logLevel });
+  const logger = pino({
+    level: cfg.logLevel,
+    ...(cfg.redactIps ? { redact: { paths: ["ip", "remoteIp", "req.remoteAddress"], censor: "[redacted]" } } : {}),
+  });
   logger.info(
     { tcpPort: cfg.tcpPort, httpPort: cfg.httpPort, outputCrs: cfg.outputCrs, antennas: Object.keys(cfg.antennas).length },
     "starting gnss-server",
@@ -19,6 +22,7 @@ async function main() {
   const tcp = startTcpListener({
     port: cfg.tcpPort,
     maxConnections: cfg.maxConnections,
+    idleTimeoutMs: cfg.tcpIdleTimeoutMs,
     outputCrs: cfg.outputCrs,
     antennas: cfg.antennas,
     store,

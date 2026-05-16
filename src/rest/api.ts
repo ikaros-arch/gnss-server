@@ -12,12 +12,17 @@ export function buildRest(store: FixStore, logger: Logger, outputCrs: string) {
     antennas: store.ids().length,
   }));
 
-  app.get("/api/antennas", async () => store.all().map((f) => ({
-    antennaId: f.antennaId,
-    lastFixAt: f.receivedAt,
-    status: f.fix.status,
-    conn: f.conn,
-  })));
+  app.get("/api/antennas", async () => {
+    const now = Date.now();
+    return store.all().map((f) => ({
+      antennaId: f.antennaId,
+      label: f.label,
+      lastFixAt: f.receivedAt,
+      ageMs: now - new Date(f.conn.lastByteAt).getTime(),
+      status: f.fix.status,
+      conn: f.conn,
+    }));
+  });
 
   app.get<{ Params: { id: string } }>("/api/antennas/:id/last", async (req, reply) => {
     const fix = store.get(req.params.id);

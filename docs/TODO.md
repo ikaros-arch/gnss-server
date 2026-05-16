@@ -34,11 +34,10 @@ the relevant phase. Keep the order roughly chronological.
 
 ## Phase 3 — Operational hardening
 
-- [ ] Stale-fix age in `/api/antennas` (compare `lastByteAt` to now)
-- [ ] WS subscribe/unsubscribe filter by antennaId
-- [ ] TCP socket: max line length, backpressure handling, `unref()` on idle
-- [ ] Configurable idle timeout
-- [ ] Log redaction option for client IPs
+- [x] Stale-fix age in `/api/antennas` (compare `lastByteAt` to now, add `ageMs`)
+- [x] WS subscribe/unsubscribe filter by antennaId (`{"type":"subscribe","ids":[...]}`)
+- [x] TCP socket: max line length (2048 B), configurable idle timeout (`TCP_IDLE_TIMEOUT_MS`)
+- [x] Log redaction option for client IPs (`REDACT_IPS=true`)
 - [ ] Prometheus `/metrics` endpoint (optional)
 
 ## Phase 4 — Deployment polish
