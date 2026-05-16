@@ -37,7 +37,7 @@ describe("parseGST", () => {
 
 describe("parseGSA", () => {
   it("extracts DOPs and fix type from a 3D fix", () => {
-    const s = "$GPGSA,A,3,04,05,09,12,,,,,,,,,3.6,2.1,2.2*38";
+    const s = "$GPGSA,A,3,04,05,09,12,,,,,,,,,3.6,2.1,2.2*1B";
     const gsa = parseGSA(s);
     expect(gsa).not.toBeNull();
     expect(gsa!.fixType).toBe(3);
