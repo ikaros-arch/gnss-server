@@ -131,7 +131,17 @@
         color: #94a3b8; font-family: ui-monospace, monospace; font-size: .75rem;
         padding: .75rem; max-height: 14rem; overflow: auto;
       }
+
+      /* ── map ── */
+      #map-section { background: #1e2433; border: 1px solid #2d3748; border-radius: .5rem; overflow: hidden; margin-bottom: 1.25rem; }
+      #map-section > summary { font-size: .8rem; color: #64748b; cursor: pointer; padding: .5rem .75rem; user-select: none; }
+      #map { height: 360px; }
+      .leaflet-popup-content-wrapper { background: #1e2433 !important; color: #e2e8f0 !important; border: none; box-shadow: 0 2px 10px rgba(0,0,0,.7) !important; }
+      .leaflet-popup-tip { background: #1e2433 !important; }
+      .leaflet-popup-close-button { color: #94a3b8 !important; }
+      .diff-age-warn { color: #f59e0b; font-size: .65rem; font-weight: 700; margin-left: .3rem; }
     </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   </head>
   <body>
     <h1>GNSS SERVER MONITOR</h1>
@@ -151,6 +161,11 @@
       <span>WS frames: <b id="h-frames">0</b></span>
     </div>
 
+    <details id="map-section" open>
+      <summary>Map</summary>
+      <div id="map"></div>
+    </details>
+
     <div id="antenna-grid"></div>
     <div id="detail"></div>
 
@@ -168,12 +183,15 @@
       </details>
     </div>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
     (() => {
       const $ = id => document.getElementById(id);
       let ws, baseUrl = "", selectedId = null, frames = 0;
       const fixes = {}; // antennaId → latest Fix
       const STALE_MS = 10_000;
+      let map = null, mapBoundsFit = false;
+      const mapMarkers = {}; // antennaId → { dot, ring }
 
       // ── connect ──────────────────────────────────────────────────────────
       $("go").onclick = connect;
@@ -189,6 +207,7 @@
           setStatus("connected", "ok");
           $("btn-all").style.display = "none";
           setInterval(refreshCards, 2_000);
+          initMap();
           initRestPanel();
         };
         ws.onclose = () => setStatus("disconnected", "err");
@@ -217,9 +236,11 @@
         $("h-frames").textContent = frames;
         const msg = JSON.parse(ev.data);
         if (msg.type === "snapshot") {
-          for (const f of msg.fixes) fixes[f.antennaId] = f;
+          for (const f of msg.fixes) { fixes[f.antennaId] = f; updateMap(f); }
+          fitMapMarkers();
         } else if (msg.type === "fix") {
           fixes[msg.fix.antennaId] = msg.fix;
+          updateMap(msg.fix);
         }
         appendLog(ev.data);
         updateHealthBar();
@@ -253,11 +274,13 @@
           ? `±${f.accuracy.sigmaLat.toFixed(3)} m N / ±${f.accuracy.sigmaLon.toFixed(3)} m E`
           : "—";
         const src = f.accuracy?.source ?? "";
+        const diffWarn = f.fix.diffAge != null && f.fix.diffAge > 5
+          ? `<span class="diff-age-warn">⚠ ${f.fix.diffAge.toFixed(0)}s</span>` : "";
         card.innerHTML = `
           <div class="ant-age ${stale ? "stale" : ""}">${fmtAge(age)}</div>
           <div class="ant-name">${esc(f.label ?? f.antennaId)}</div>
           <div class="ant-id">${esc(f.antennaId)} · ${esc(f.conn.remoteIp)}</div>
-          <span class="ant-status s-${f.fix.status}">${f.fix.status}</span>
+          <span class="ant-status s-${f.fix.status}">${f.fix.status}</span>${diffWarn}
           <div class="ant-row"><span>Lat</span><b>${f.llh.lat.toFixed(7)}°</b></div>
           <div class="ant-row"><span>Lon</span><b>${f.llh.lon.toFixed(7)}°</b></div>
           <div class="ant-row"><span>Alt (MSL)</span><b>${f.llh.altMsl.toFixed(3)} m</b></div>
@@ -286,6 +309,7 @@
           $("btn-all").style.display = "none";
           $("detail").className = "";
         }
+        highlightMapMarker(id);
         renderCards();
       }
 
@@ -304,6 +328,10 @@
         const sigUTM = xy.sigmaE != null
           ? `σE ${xy.sigmaE.toFixed(4)} m / σN ${xy.sigmaN.toFixed(4)} m`
           : "—";
+        const diffAgeHtml = fix.diffAge != null
+          ? `<span style="${fix.diffAge > 5 ? "color:#f59e0b" : "color:#4ade80"}">${fix.diffAge.toFixed(1)} s ago</span>`
+          : `<span style="color:#6b7280">N/A</span>`;
+        const refIdHtml = fix.refStationId ? `Base: ${esc(fix.refStationId)}` : "—";
 
         el.innerHTML = `
           <h2>${esc(f.label ?? f.antennaId)} — detail</h2>
@@ -335,6 +363,11 @@
               <div class="lbl">Fix quality</div>
               <div class="val"><span class="ant-status s-${fix.status}">${fix.status}</span></div>
               <div class="sub">Quality ${fix.quality} · Sats ${fix.satellites} · HDOP ${fix.hdop} · VDOP ${vdop} · PDOP ${pdop}</div>
+            </div>
+            <div class="detail-box">
+              <div class="lbl">Corrections (diff age)</div>
+              <div class="val">${diffAgeHtml}</div>
+              <div class="sub">${refIdHtml}</div>
             </div>
             <div class="detail-box">
               <div class="lbl">Velocity</div>
@@ -441,6 +474,73 @@
       function esc(s) {
         return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       }
+
+      // ── map ──────────────────────────────────────────────────────────────
+      const STATUS_COLORS = {
+        RTK_FIXED: "#4ade80", RTK_FLOAT: "#60a5fa", DGPS: "#86efac",
+        GPS: "#fde047", ESTIMATED: "#fb923c",
+      };
+
+      function initMap() {
+        if (map) return;
+        map = L.map("map");
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 22,
+        }).addTo(map);
+        document.getElementById("map-section").addEventListener("toggle", () => {
+          if (map) setTimeout(() => map.invalidateSize(), 0);
+        });
+      }
+
+      function fitMapMarkers() {
+        if (!map || mapBoundsFit) return;
+        const lls = Object.values(mapMarkers).map(m => m.dot.getLatLng());
+        if (lls.length === 1) { map.setView(lls[0], 18); mapBoundsFit = true; }
+        else if (lls.length > 1) { map.fitBounds(L.latLngBounds(lls).pad(0.3)); mapBoundsFit = true; }
+      }
+
+      function updateMap(f) {
+        if (!map) return;
+        const lat = f.llh.lat, lon = f.llh.lon;
+        const color = STATUS_COLORS[f.fix.status] ?? "#6b7280";
+        const isSelected = f.antennaId === selectedId;
+        const popup = `<b>${esc(f.label ?? f.antennaId)}</b><br>` +
+          `<span style="font-size:.8rem">${f.fix.status}</span><br>` +
+          `<span style="font-size:.75rem;font-family:monospace">${lat.toFixed(7)}°, ${lon.toFixed(7)}°</span>`;
+        const dotOpts = { radius: isSelected ? 10 : 7, color, fillColor: color, fillOpacity: 0.85, weight: isSelected ? 3 : 2 };
+        if (mapMarkers[f.antennaId]) {
+          const m = mapMarkers[f.antennaId];
+          m.dot.setLatLng([lat, lon]);
+          m.dot.setRadius(isSelected ? 10 : 7);
+          m.dot.setStyle({ color, fillColor: color, fillOpacity: 0.85, weight: isSelected ? 3 : 2 });
+          m.dot.getPopup()?.setContent(popup);
+          const sigR = f.accuracy?.sigmaLat;
+          if (m.ring) {
+            if (sigR != null) { m.ring.setLatLng([lat, lon]).setRadius(Math.max(sigR, 0.02)).setStyle({ color }); }
+          } else if (sigR != null) {
+            m.ring = L.circle([lat, lon], { radius: Math.max(sigR, 0.02), color, fillColor: color, fillOpacity: 0.12, weight: 1, dashArray: "4 4" }).addTo(map);
+          }
+        } else {
+          const dot = L.circleMarker([lat, lon], dotOpts).addTo(map).bindPopup(popup);
+          dot.on("click", () => selectAntenna(f.antennaId));
+          const sigR = f.accuracy?.sigmaLat;
+          const ring = sigR != null
+            ? L.circle([lat, lon], { radius: Math.max(sigR, 0.02), color, fillColor: color, fillOpacity: 0.12, weight: 1, dashArray: "4 4" }).addTo(map)
+            : null;
+          mapMarkers[f.antennaId] = { dot, ring };
+        }
+      }
+
+      function highlightMapMarker(id) {
+        for (const [aid, m] of Object.entries(mapMarkers)) {
+          const sel = aid === id;
+          m.dot.setRadius(sel ? 10 : 7);
+          m.dot.setStyle({ weight: sel ? 3 : 2 });
+        }
+        if (id && mapMarkers[id]) map?.panTo(mapMarkers[id].dot.getLatLng());
+      }
+
     })();
     </script>
   </body>
