@@ -164,9 +164,9 @@
         }
         #right-col #map { height: calc(100vh - 30rem); }
       }
-      /* marker label */
-      .marker-label {
-        background: rgba(15,17,23,.82);
+      /* marker label — permanent tooltip */
+      .leaflet-tooltip.marker-label {
+        background: rgba(15,17,23,.88);
         border: 1px solid #2d3748;
         border-radius: .25rem;
         color: #e2e8f0;
@@ -175,7 +175,9 @@
         padding: .1rem .35rem;
         white-space: nowrap;
         pointer-events: none;
+        box-shadow: none;
       }
+      .leaflet-tooltip.marker-label::before { display: none; } /* hide arrow */
     </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   </head>
@@ -538,15 +540,6 @@
         else if (lls.length > 1) { map.fitBounds(L.latLngBounds(lls).pad(0.3)); mapBoundsFit = true; }
       }
 
-      function makeLabelIcon(name) {
-        return L.divIcon({
-          className: "",
-          html: `<div class="marker-label">${esc(name)}</div>`,
-          iconSize: [0, 0],      // zero-size wrapper so Leaflet doesn't clip the div
-          iconAnchor: [-10, 10], // offset so label sits to the right of the dot
-        });
-      }
-
       function updateMap(f) {
         if (!map) return;
         const lat = f.llh.lat, lon = f.llh.lon;
@@ -564,7 +557,7 @@
           m.dot.setRadius(isSelected ? 10 : 7);
           m.dot.setStyle({ color, fillColor: color, fillOpacity: 0.85, weight: isSelected ? 3 : 2 });
           m.dot.getPopup()?.setContent(popup);
-          m.labelMarker.setLatLng([lat, lon]);
+          // tooltip follows the circleMarker automatically
           const sigR = f.accuracy?.sigmaLat;
           if (m.ring) {
             if (sigR != null) { m.ring.setLatLng([lat, lon]).setRadius(Math.max(sigR, 0.02)).setStyle({ color }); }
@@ -573,13 +566,13 @@
           }
         } else {
           const dot = L.circleMarker([lat, lon], dotOpts).addTo(map).bindPopup(popup);
+          dot.bindTooltip(labelText, { permanent: true, direction: 'right', className: 'marker-label', offset: [8, 0] });
           dot.on("click", () => selectAntenna(f.antennaId));
-          const labelMarker = L.marker([lat, lon], { icon: makeLabelIcon(labelText), interactive: false, zIndexOffset: 100 }).addTo(map);
           const sigR = f.accuracy?.sigmaLat;
           const ring = sigR != null
             ? L.circle([lat, lon], { radius: Math.max(sigR, 0.02), color, fillColor: color, fillOpacity: 0.12, weight: 1, dashArray: "4 4" }).addTo(map)
             : null;
-          mapMarkers[f.antennaId] = { dot, labelMarker, ring };
+          mapMarkers[f.antennaId] = { dot, ring };
         }
       }
 
