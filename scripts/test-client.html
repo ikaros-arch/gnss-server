@@ -2,34 +2,452 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>gnss-server WS test client</title>
+    <title>GNSS Server — Monitor</title>
     <style>
-      body { font-family: ui-monospace, monospace; padding: 1rem; }
-      pre  { background: #111; color: #eee; padding: 1rem; max-height: 70vh; overflow: auto; }
-      input { width: 24rem; }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: #0f1117;
+        color: #e2e8f0;
+        min-height: 100vh;
+        padding: 1.25rem;
+      }
+      h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: .05em; color: #94a3b8; margin-bottom: 1rem; }
+
+      /* ── top bar ── */
+      .topbar {
+        display: flex; align-items: center; gap: .75rem;
+        margin-bottom: 1.25rem; flex-wrap: wrap;
+      }
+      .topbar input {
+        background: #1e2433; border: 1px solid #2d3748; color: #e2e8f0;
+        border-radius: .375rem; padding: .375rem .75rem; font-size: .875rem;
+        width: 22rem;
+      }
+      button {
+        background: #3b82f6; color: #fff; border: none; border-radius: .375rem;
+        padding: .375rem .875rem; font-size: .875rem; cursor: pointer;
+      }
+      button:hover { background: #2563eb; }
+      button.secondary { background: #374151; }
+      button.secondary:hover { background: #4b5563; }
+      #dot {
+        width: .625rem; height: .625rem; border-radius: 50%;
+        background: #374151; flex-shrink: 0;
+      }
+      #dot.ok { background: #22c55e; }
+      #dot.err { background: #ef4444; }
+      #status-text { font-size: .8rem; color: #64748b; }
+
+      /* ── health bar ── */
+      #health-bar {
+        display: flex; gap: 1.5rem; align-items: center;
+        background: #1e2433; border: 1px solid #2d3748; border-radius: .5rem;
+        padding: .5rem 1rem; margin-bottom: 1.25rem; font-size: .8rem; color: #94a3b8;
+        flex-wrap: wrap;
+      }
+      #health-bar span { white-space: nowrap; }
+      #health-bar b { color: #e2e8f0; }
+
+      /* ── antenna grid ── */
+      #antenna-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+        gap: .75rem;
+        margin-bottom: 1.25rem;
+      }
+      .ant-card {
+        background: #1e2433; border: 1px solid #2d3748; border-radius: .5rem;
+        padding: .75rem 1rem; cursor: pointer; transition: border-color .15s;
+        position: relative;
+      }
+      .ant-card:hover { border-color: #3b82f6; }
+      .ant-card.active { border-color: #3b82f6; background: #1e2d4a; }
+      .ant-card.stale { border-color: #b45309; }
+      .ant-name { font-weight: 600; font-size: .9rem; margin-bottom: .25rem; }
+      .ant-id { font-size: .7rem; color: #64748b; margin-bottom: .5rem; }
+      .ant-status {
+        display: inline-block; font-size: .65rem; font-weight: 700;
+        padding: .15rem .45rem; border-radius: .25rem; margin-bottom: .5rem;
+        letter-spacing: .04em;
+      }
+      .s-RTK_FIXED  { background: #14532d; color: #4ade80; }
+      .s-RTK_FLOAT  { background: #1c3a5e; color: #60a5fa; }
+      .s-DGPS       { background: #1e3a1e; color: #86efac; }
+      .s-GPS        { background: #2d2a12; color: #fde047; }
+      .s-ESTIMATED  { background: #2d1f12; color: #fb923c; }
+      .s-NONE,.s-unknown { background: #1f1f1f; color: #6b7280; }
+      .ant-row { display: flex; justify-content: space-between; font-size: .75rem; color: #94a3b8; margin-top: .2rem; }
+      .ant-row b { color: #e2e8f0; }
+      .ant-age { position: absolute; top: .5rem; right: .75rem; font-size: .65rem; color: #64748b; }
+      .ant-age.stale { color: #f59e0b; }
+
+      /* ── detail pane ── */
+      #detail {
+        background: #1e2433; border: 1px solid #2d3748; border-radius: .5rem;
+        padding: 1rem 1.25rem; margin-bottom: 1.25rem;
+        display: none;
+      }
+      #detail.visible { display: block; }
+      #detail h2 { font-size: .9rem; font-weight: 600; color: #94a3b8; margin-bottom: .75rem; }
+      .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+        gap: .75rem;
+      }
+      .detail-box {
+        background: #0f1117; border: 1px solid #2d3748; border-radius: .375rem;
+        padding: .5rem .75rem;
+      }
+      .detail-box .lbl { font-size: .65rem; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: .25rem; }
+      .detail-box .val { font-size: .875rem; color: #e2e8f0; font-weight: 500; word-break: break-all; }
+      .detail-box .val.mono { font-family: ui-monospace, monospace; font-size: .8rem; }
+      .detail-box .sub { font-size: .7rem; color: #64748b; margin-top: .15rem; }
+
+      /* ── rest panel ── */
+      #rest-wrap { margin-bottom: 1.25rem; }
+      #rest-wrap summary { font-size: .8rem; color: #64748b; cursor: pointer; margin-bottom: .5rem; user-select: none; }
+      .rest-endpoint { background: #1e2433; border: 1px solid #2d3748; border-radius: .5rem; margin-bottom: .5rem; overflow: hidden; }
+      .rest-head { display: flex; align-items: center; gap: .75rem; padding: .5rem .75rem; cursor: pointer; }
+      .rest-head:hover { background: #263044; }
+      .rest-method { font-size: .65rem; font-weight: 700; color: #60a5fa; background: #1e3a5e; padding: .15rem .45rem; border-radius: .25rem; }
+      .rest-path { font-family: ui-monospace, monospace; font-size: .8rem; color: #e2e8f0; flex: 1; }
+      .rest-meta { font-size: .7rem; color: #64748b; }
+      .rest-ok  { color: #4ade80; font-size: .75rem; }
+      .rest-err { color: #ef4444; font-size: .75rem; }
+      .rest-body {
+        display: none; padding: .5rem .75rem;
+        font-family: ui-monospace, monospace; font-size: .75rem;
+        color: #94a3b8; white-space: pre-wrap; word-break: break-all;
+        border-top: 1px solid #2d3748; max-height: 18rem; overflow: auto;
+        background: #0f1117;
+      }
+      .rest-body.open { display: block; }
+      /* ── raw log ── */
+      #log-wrap details { }
+      #log-wrap summary { font-size: .8rem; color: #64748b; cursor: pointer; margin-bottom: .5rem; user-select: none; }
+      #log {
+        background: #0f1117; border: 1px solid #2d3748; border-radius: .375rem;
+        color: #94a3b8; font-family: ui-monospace, monospace; font-size: .75rem;
+        padding: .75rem; max-height: 14rem; overflow: auto;
+      }
     </style>
   </head>
   <body>
-    <h1>gnss-server WS test client</h1>
-    <label>WS URL: <input id="url" value="ws://localhost:9200/ws" /></label>
-    <button id="go">Connect</button>
-    <p id="status">disconnected</p>
-    <pre id="log"></pre>
+    <h1>GNSS SERVER MONITOR</h1>
+
+    <div class="topbar">
+      <input id="base-url" value="http://localhost:9200" placeholder="http://host:9200" />
+      <button id="go">Connect</button>
+      <button class="secondary" id="btn-all" style="display:none">Show all</button>
+      <div id="dot"></div>
+      <span id="status-text">disconnected</span>
+    </div>
+
+    <div id="health-bar" style="display:none">
+      <span>Uptime: <b id="h-uptime">—</b></span>
+      <span>CRS: <b id="h-crs">—</b></span>
+      <span>Antennas: <b id="h-count">—</b></span>
+      <span>WS frames: <b id="h-frames">0</b></span>
+    </div>
+
+    <div id="antenna-grid"></div>
+    <div id="detail"></div>
+
+    <div id="rest-wrap">
+      <details>
+        <summary>REST endpoints</summary>
+        <div id="rest-endpoints"></div>
+      </details>
+    </div>
+
+    <div id="log-wrap">
+      <details>
+        <summary>Raw WS log</summary>
+        <div id="log"></div>
+      </details>
+    </div>
+
     <script>
-      const $ = (id) => document.getElementById(id);
-      let ws;
-      $("go").onclick = () => {
+    (() => {
+      const $ = id => document.getElementById(id);
+      let ws, baseUrl = "", selectedId = null, frames = 0;
+      const fixes = {}; // antennaId → latest Fix
+      const STALE_MS = 10_000;
+
+      // ── connect ──────────────────────────────────────────────────────────
+      $("go").onclick = connect;
+      $("btn-all").onclick = () => { selectAntenna(null); };
+
+      function connect() {
+        baseUrl = $("base-url").value.replace(/\/$/, "");
+        const wsUrl = baseUrl.replace(/^http/, "ws") + "/ws";
         if (ws) ws.close();
-        ws = new WebSocket($("url").value);
-        ws.onopen = () => ($("status").textContent = "connected");
-        ws.onclose = () => ($("status").textContent = "disconnected");
-        ws.onerror = (e) => ($("status").textContent = "error");
-        ws.onmessage = (m) => {
-          const log = $("log");
-          log.textContent = m.data + "\n" + log.textContent;
-          if (log.textContent.length > 20000) log.textContent = log.textContent.slice(0, 20000);
+        setStatus("connecting…", "");
+        ws = new WebSocket(wsUrl);
+        ws.onopen = () => {
+          setStatus("connected", "ok");
+          $("btn-all").style.display = "none";
+          loadHealth();
+          setInterval(loadHealth, 10_000);
+          setInterval(refreshCards, 2_000);
+          initRestPanel();
+          setInterval(refreshRestPanel, 5_000);
         };
-      };
+        ws.onclose = () => setStatus("disconnected", "err");
+        ws.onerror = () => setStatus("error", "err");
+        ws.onmessage = onMessage;
+      }
+
+      function setStatus(txt, cls) {
+        $("status-text").textContent = txt;
+        $("dot").className = cls;
+        if (cls === "ok") $("health-bar").style.display = "";
+        if (cls === "err") $("health-bar").style.display = "none";
+      }
+
+      // ── health poll ───────────────────────────────────────────────────────
+      async function loadHealth() {
+        // Derive count and CRS from WS fix data — works even from file:// origin.
+        const ids = Object.keys(fixes);
+        if (ids.length) {
+          $("h-count").textContent = ids.length;
+          $("h-crs").textContent = fixes[ids[0]].utm.crs;
+        }
+        // Uptime is only available via REST; fails silently if CORS blocks it
+        // (e.g. when opening this file directly from disk).
+        try {
+          const h = await fetch(baseUrl + "/api/health").then(r => r.json());
+          $("h-uptime").textContent = fmtUptime(h.uptime);
+          $("h-count").textContent = h.antennas;
+          $("h-crs").textContent = h.outputCrs;
+        } catch {}
+      }
+
+      // ── WS messages ───────────────────────────────────────────────────────
+      function onMessage(ev) {
+        frames++;
+        $("h-frames").textContent = frames;
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "snapshot") {
+          for (const f of msg.fixes) fixes[f.antennaId] = f;
+        } else if (msg.type === "fix") {
+          fixes[msg.fix.antennaId] = msg.fix;
+        }
+        appendLog(ev.data);
+        loadHealth();
+        renderCards();
+        if (selectedId && fixes[selectedId]) renderDetail(fixes[selectedId]);
+      }
+
+      // ── antenna cards ─────────────────────────────────────────────────────
+      function renderCards() {
+        const grid = $("antenna-grid");
+        const ids = Object.keys(fixes);
+        // add/update cards
+        for (const id of ids) {
+          let card = document.getElementById("card-" + CSS.escape(id));
+          if (!card) {
+            card = document.createElement("div");
+            card.className = "ant-card";
+            card.id = "card-" + CSS.escape(id);
+            card.onclick = () => selectAntenna(id);
+            grid.appendChild(card);
+          }
+          fillCard(card, fixes[id]);
+        }
+      }
+
+      function fillCard(card, f) {
+        const age = Date.now() - new Date(f.conn.lastByteAt).getTime();
+        const stale = age > STALE_MS;
+        card.className = "ant-card" + (f.antennaId === selectedId ? " active" : "") + (stale ? " stale" : "");
+        const sigH = f.accuracy?.sigmaLat != null
+          ? `±${f.accuracy.sigmaLat.toFixed(3)} m N / ±${f.accuracy.sigmaLon.toFixed(3)} m E`
+          : "—";
+        const src = f.accuracy?.source ?? "";
+        card.innerHTML = `
+          <div class="ant-age ${stale ? "stale" : ""}">${fmtAge(age)}</div>
+          <div class="ant-name">${esc(f.label ?? f.antennaId)}</div>
+          <div class="ant-id">${esc(f.antennaId)} · ${esc(f.conn.remoteIp)}</div>
+          <span class="ant-status s-${f.fix.status}">${f.fix.status}</span>
+          <div class="ant-row"><span>Lat</span><b>${f.llh.lat.toFixed(7)}°</b></div>
+          <div class="ant-row"><span>Lon</span><b>${f.llh.lon.toFixed(7)}°</b></div>
+          <div class="ant-row"><span>Alt (MSL)</span><b>${f.llh.altMsl.toFixed(3)} m</b></div>
+          <div class="ant-row"><span>Sats / HDOP</span><b>${f.fix.satellites} / ${f.fix.hdop}</b></div>
+          <div class="ant-row"><span>Accuracy (${src})</span><b style="font-size:.7rem">${sigH}</b></div>`;
+      }
+
+      function refreshCards() {
+        for (const id of Object.keys(fixes)) {
+          const card = document.getElementById("card-" + CSS.escape(id));
+          if (card) fillCard(card, fixes[id]);
+        }
+        if (selectedId && fixes[selectedId]) renderDetail(fixes[selectedId]);
+      }
+
+      // ── selection ─────────────────────────────────────────────────────────
+      function selectAntenna(id) {
+        selectedId = id;
+        if (id) {
+          ws.send(JSON.stringify({ type: "subscribe", ids: [id] }));
+          $("btn-all").style.display = "";
+          renderDetail(fixes[id]);
+          $("detail").className = "visible";
+        } else {
+          ws.send(JSON.stringify({ type: "unsubscribe" }));
+          $("btn-all").style.display = "none";
+          $("detail").className = "";
+        }
+        renderCards();
+      }
+
+      // ── detail pane ───────────────────────────────────────────────────────
+      function renderDetail(f) {
+        const el = $("detail");
+        const ll = f.llh, xy = f.utm, xyz = f.xyz, acc = f.accuracy ?? {}, fix = f.fix;
+        const vdop = fix.vdop != null ? fix.vdop.toFixed(2) : "—";
+        const pdop = fix.pdop != null ? fix.pdop.toFixed(2) : "—";
+        const vel = f.velocity
+          ? `${f.velocity.speedKmh.toFixed(1)} km/h · ${f.velocity.courseTrue.toFixed(1)}°`
+          : "—";
+        const sigXYZ = xyz.sigmaX != null
+          ? `σX ${xyz.sigmaX.toFixed(4)} m / σY ${xyz.sigmaY.toFixed(4)} m / σZ ${xyz.sigmaZ.toFixed(4)} m`
+          : "—";
+        const sigUTM = xy.sigmaE != null
+          ? `σE ${xy.sigmaE.toFixed(4)} m / σN ${xy.sigmaN.toFixed(4)} m`
+          : "—";
+
+        el.innerHTML = `
+          <h2>${esc(f.label ?? f.antennaId)} — detail</h2>
+          <div class="detail-grid">
+            <div class="detail-box">
+              <div class="lbl">Position (WGS84)</div>
+              <div class="val mono">${ll.lat.toFixed(8)}°<br>${ll.lon.toFixed(8)}°</div>
+              <div class="sub">Alt MSL ${ll.altMsl.toFixed(3)} m · Geoid sep ${ll.geoidSep.toFixed(3)} m · Ell ${ll.altEll.toFixed(3)} m</div>
+            </div>
+            <div class="detail-box">
+              <div class="lbl">UTM (${esc(xy.crs)})</div>
+              <div class="val mono">E ${xy.x.toFixed(3)}<br>N ${xy.y.toFixed(3)}</div>
+              <div class="sub">${sigUTM}</div>
+            </div>
+            <div class="detail-box">
+              <div class="lbl">ECEF (XYZ)</div>
+              <div class="val mono">${xyz.x.toFixed(3)}<br>${xyz.y.toFixed(3)}<br>${xyz.z.toFixed(3)}</div>
+              <div class="sub">${sigXYZ}</div>
+            </div>
+            <div class="detail-box">
+              <div class="lbl">Accuracy (${esc(acc.source ?? "—")})</div>
+              <div class="val">
+                ${acc.sigmaLat != null ? `σN ${acc.sigmaLat.toFixed(4)} m` : "—"}<br>
+                ${acc.sigmaLon != null ? `σE ${acc.sigmaLon.toFixed(4)} m` : "—"}<br>
+                ${acc.sigmaAlt != null ? `σU ${acc.sigmaAlt.toFixed(4)} m` : "—"}
+              </div>
+            </div>
+            <div class="detail-box">
+              <div class="lbl">Fix quality</div>
+              <div class="val"><span class="ant-status s-${fix.status}">${fix.status}</span></div>
+              <div class="sub">Quality ${fix.quality} · Sats ${fix.satellites} · HDOP ${fix.hdop} · VDOP ${vdop} · PDOP ${pdop}</div>
+            </div>
+            <div class="detail-box">
+              <div class="lbl">Velocity</div>
+              <div class="val">${vel}</div>
+              ${f.velocity ? `<div class="sub">${f.velocity.speedKnots.toFixed(2)} kn</div>` : ""}
+            </div>
+            <div class="detail-box">
+              <div class="lbl">UTC time</div>
+              <div class="val mono">${esc(f.utcDate ?? "—")} ${esc(f.utc)}</div>
+              <div class="sub">Received ${esc(f.receivedAt)}</div>
+            </div>
+            <div class="detail-box">
+              <div class="lbl">Connection</div>
+              <div class="val mono">${esc(f.conn.remoteIp)}:${f.conn.remotePort}</div>
+              <div class="sub">Since ${esc(f.conn.since)}</div>
+            </div>
+          </div>`;
+      }
+
+      // ── REST panel ──────────────────────────────────────────────────────────────────────────
+      const REST_ENDPOINTS = [
+        { path: "/api/health",   label: "Health" },
+        { path: "/api/antennas", label: "Antennas" },
+        { path: "/api/fixes",    label: "Fixes (snapshot)" },
+      ];
+      const restState = {}; // path → { el, bodyEl, lastMs, ok }
+
+      function initRestPanel() {
+        const container = $("rest-endpoints");
+        container.innerHTML = "";
+        for (const ep of REST_ENDPOINTS) {
+          const wrap = document.createElement("div");
+          wrap.className = "rest-endpoint";
+          const head = document.createElement("div");
+          head.className = "rest-head";
+          head.innerHTML = `<span class="rest-method">GET</span>
+            <span class="rest-path">${esc(ep.path)}</span>
+            <span class="rest-meta" id="rm-${esc(ep.path)}">not fetched</span>
+            <button class="secondary" style="font-size:.7rem;padding:.2rem .5rem">Refresh</button>`;
+          const body = document.createElement("pre");
+          body.className = "rest-body";
+          body.id = "rb-" + esc(ep.path);
+          head.querySelector("button").onclick = (e) => { e.stopPropagation(); fetchEndpoint(ep.path); };
+          head.onclick = () => body.classList.toggle("open");
+          wrap.appendChild(head);
+          wrap.appendChild(body);
+          container.appendChild(wrap);
+        }
+        refreshRestPanel();
+      }
+
+      async function fetchEndpoint(path) {
+        const metaEl = $("rm-" + path);
+        const bodyEl = $("rb-" + path);
+        const t0 = Date.now();
+        try {
+          const res = await fetch(baseUrl + path);
+          const ms = Date.now() - t0;
+          const text = await res.text();
+          // pretty-print if JSON
+          let pretty = text;
+          try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch {}
+          bodyEl.textContent = pretty;
+          metaEl.innerHTML = `<span class="rest-ok">${res.status} OK</span> <span style="color:#64748b">${ms}ms · ${new Date().toLocaleTimeString()}</span>`;
+        } catch (err) {
+          const ms = Date.now() - t0;
+          bodyEl.textContent = String(err);
+          metaEl.innerHTML = `<span class="rest-err">error</span> <span style="color:#64748b">${ms}ms · ${new Date().toLocaleTimeString()}</span>`;
+        }
+      }
+
+      function refreshRestPanel() {
+        // Only auto-refresh endpoints whose body panel is open.
+        for (const ep of REST_ENDPOINTS) {
+          const bodyEl = $("rb-" + ep.path);
+          if (bodyEl && bodyEl.classList.contains("open")) fetchEndpoint(ep.path);
+        }
+      }
+
+      // ── raw log ──────────────────────────────────────────────────────────────────────────
+      function appendLog(txt) {
+        const el = $("log");
+        el.textContent = txt.slice(0, 400) + (txt.length > 400 ? "…" : "") + "\n" + el.textContent;
+        if (el.textContent.length > 12_000) el.textContent = el.textContent.slice(0, 12_000);
+      }
+
+      // ── helpers ───────────────────────────────────────────────────────────
+      function fmtAge(ms) {
+        if (ms < 2000) return `${ms}ms`;
+        if (ms < 60_000) return `${(ms/1000).toFixed(0)}s ago`;
+        return `${(ms/60_000).toFixed(0)}m ago`;
+      }
+      function fmtUptime(s) {
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = Math.floor(s % 60);
+        return h ? `${h}h ${m}m` : m ? `${m}m ${ss}s` : `${ss}s`;
+      }
+      function esc(s) {
+        return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      }
+    })();
     </script>
   </body>
 </html>

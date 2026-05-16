@@ -1,9 +1,34 @@
 import Fastify from "fastify";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
 import type { Logger } from "pino";
 import type { FixStore } from "../store/fixStore.js";
 
+const __dir = dirname(fileURLToPath(import.meta.url));
+// Resolve test-client.html relative to this file: dist/rest/ → scripts/
+const clientHtml = (() => {
+  try { return readFileSync(join(__dir, "../../scripts/test-client.html"), "utf8"); }
+  catch { return null; }
+})();
+
 export function buildRest(store: FixStore, logger: Logger, outputCrs: string) {
   const app = Fastify({ logger: logger as any });
+
+  // Allow cross-origin requests (LAN-only service, read-only GET endpoints).
+  app.addHook("onSend", async (_req, reply) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+  });
+  app.options("*", async (_req, reply) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+    reply.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+    return reply.code(204).send();
+  });
+
+  // Serve the monitor UI at the root so it works from the same origin.
+  if (clientHtml) {
+    app.get("/", async (_req, reply) => reply.type("text/html").send(clientHtml));
+  }
 
   app.get("/api/health", async () => ({
     status: "ok",

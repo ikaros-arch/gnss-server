@@ -14,6 +14,7 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json* ./
 RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --from=build /app/dist ./dist
+COPY scripts/test-client.html ./scripts/test-client.html
 
 # Drop privileges
 RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
