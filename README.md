@@ -5,11 +5,27 @@ Ingest NMEA from multiple GNSS antennas over TCP and stream normalized fixes
 and a small **REST** API. Designed to run as a Docker container on a Linux
 x86-64 server or a Raspberry Pi (ARM64).
 
-> Status: **Phase 1 scaffold** — the service boots end-to-end (TCP listener,
-> REST `/api/health`, WebSocket `/ws`) and projects positions to the configured
-> CRS (default **EPSG:32635 — WGS84 / UTM zone 35N**). Subsequent phases harden
-> parsing, accuracy, and operational concerns. See [docs/PLAN.md](docs/PLAN.md)
-> and [docs/TODO.md](docs/TODO.md).
+> Status: **production** — all four implementation phases are complete.
+> The service boots end-to-end (TCP listener, REST, WebSocket), parses
+> GGA / GST / GSA / RMC / VTG, projects positions to the configured CRS
+> (default **EPSG:32635 — WGS84 / UTM zone 35N**), and ships with a
+> dark-theme browser monitor at `GET /` (see [screenshot below](#browser-monitor)).
+> See [docs/PLAN.md](docs/PLAN.md) and [docs/TODO.md](docs/TODO.md).
+
+---
+
+## Browser monitor
+
+Opening `http://<host>:9200/` serves a built-in dark-theme monitor. It
+connects over WebSocket, shows a live Leaflet map with colour-coded markers
+per antenna, an antenna card grid, a detail pane with full fix metadata, and
+an expandable REST explorer.
+
+![GNSS Server monitor — two antennas visible on map, detail pane open for RS3 Base Sorokos](docs/GNSS_server_monitor.png)
+
+Marker colours indicate fix quality: green = RTK\_FIXED, blue = RTK\_FLOAT,
+light green = DGPS, yellow = GPS, orange = estimated. A dashed circle shows
+the 1-sigma horizontal accuracy when the receiver sends GST sentences.
 
 ---
 
@@ -18,15 +34,21 @@ x86-64 server or a Raspberry Pi (ARM64).
 ```bash
 npm install
 cp .env.example .env
-npm run dev
+make dev          # tsx watch — reloads on save
 ```
 
 In another terminal, replay sample NMEA at the listener:
 
 ```bash
-npm run replay                 # localhost:9100, 1 Hz, built-in sample
+make replay                    # localhost:9100, 1 Hz, built-in sample
 # or replay a real log:
 npm run replay -- 127.0.0.1 9100 path/to/log.nmea 5
+```
+
+Run unit tests:
+
+```bash
+make test
 ```
 
 Verify:
@@ -36,8 +58,8 @@ curl http://localhost:9200/api/health
 curl http://localhost:9200/api/fixes
 ```
 
-Open `scripts/test-client.html` in a browser to watch fixes stream over the
-WebSocket at `ws://localhost:9200/ws`.
+Open `http://localhost:9200/` in a browser to see the live monitor (antenna
+cards, Leaflet map, detail pane, REST explorer).
 
 ---
 
@@ -49,8 +71,26 @@ on the Linux server / Raspberry Pi:
 ```bash
 cp .env.example .env
 # edit .env if needed (ports, OUTPUT_CRS, LOG_LEVEL)
-docker compose up --build -d
+make prod         # build + start with production overlay
+make logs         # tail logs
+make ps           # check status
 ```
+
+Subsequent deploys (pull latest and restart):
+
+```bash
+make pull
+```
+
+Other useful targets:
+
+```bash
+make stop         # docker compose down
+make restart      # restart container without rebuild
+make build        # start without the production overlay (no limits)
+```
+
+Run `make help` for the full list.
 
 Multi-arch image (build once, push to a registry, pull on the Pi):
 
@@ -74,14 +114,17 @@ Default exposed ports:
 
 All configuration is via environment variables (see `.env.example`):
 
-| Variable          | Default        | Notes                                                |
-|-------------------|----------------|------------------------------------------------------|
-| `TCP_PORT`        | `9100`         | NMEA listener port (inside container).               |
-| `HTTP_PORT`       | `9200`         | REST + WS port (inside container).                   |
-| `MAX_CONNECTIONS` | `16`           | Hard cap on concurrent antenna sockets.              |
-| `LOG_LEVEL`       | `info`         | pino level: `fatal`/`error`/`warn`/`info`/`debug`.   |
-| `OUTPUT_CRS`      | `EPSG:32635`   | Target CRS for projected `utm` field on each fix.    |
-| `ANTENNAS_FILE`   | _(unset)_      | Path to JSON map of `remoteIp` → `{id,label}`.       |
+| Variable              | Default      | Notes                                                      |
+|-----------------------|--------------|------------------------------------------------------------|
+| `TCP_PORT`            | `9100`       | NMEA listener port (inside container).                     |
+| `HTTP_PORT`           | `9200`       | REST + WS port (inside container).                         |
+| `MAX_CONNECTIONS`     | `16`         | Hard cap on concurrent antenna sockets.                    |
+| `TCP_IDLE_TIMEOUT_MS` | `30000`      | Close silent TCP connections after this ms.                |
+| `ANTENNA_PURGE_MS`    | `900000`     | Remove antennas from memory after this ms of inactivity.   |
+| `LOG_LEVEL`           | `info`       | pino level: `fatal`/`error`/`warn`/`info`/`debug`.         |
+| `REDACT_IPS`          | _(unset)_    | Set `true` to replace IPs with `[redacted]` in logs.       |
+| `OUTPUT_CRS`          | `EPSG:32635` | Target CRS for projected `utm` field on each fix.          |
+| `ANTENNAS_FILE`       | _(unset)_    | Path to JSON map of `remoteIp` → `{id,label}`.             |
 
 ### Antenna mapping
 
@@ -104,7 +147,8 @@ connection to resolve a stable `antennaId`. Otherwise it falls back to
   "xyz": { "x": 4595280.1, "y": 2039473.7, "z": 3912648.9, "sigmaX": 0.01, "sigmaY": 0.01, "sigmaZ": 0.02 },
   "utm": { "x": 738123.45, "y": 4205678.90, "crs": "EPSG:32635", "sigmaE": 0.01, "sigmaN": 0.01 },
   "accuracy": { "source": "GST", "sigmaLat": 0.012, "sigmaLon": 0.011, "sigmaAlt": 0.025 },
-  "fix":  { "quality": 4, "status": "RTK_FIXED", "satellites": 18, "hdop": 0.6, "vdop": 1.1, "pdop": 1.3 },
+  "fix":  { "quality": 4, "status": "RTK_FIXED", "satellites": 18, "hdop": 0.6, "vdop": 1.1, "pdop": 1.3,
+            "diffAge": 1.2, "refStationId": "0001" },
   "velocity": { "courseTrue": 54.7, "speedKnots": 0.1, "speedKmh": 0.2 },
   "conn": { "remoteIp": "192.168.1.42", "remotePort": 50211, "since": "...", "lastByteAt": "..." }
 }
@@ -151,19 +195,17 @@ WebSocket protocol on `/ws`:
 ## Testing
 
 ```bash
-npm test           # vitest, runs unit tests for checksum / NMEA / geodesy
-npm run test:watch
+make test          # vitest unit tests
+npm run test:watch # watch mode
 ```
 
 Manual end-to-end with the running container:
 
 ```bash
-# in one terminal
-docker compose up
-# in another (uses the bundled replay script against the host port)
-npm run replay -- 127.0.0.1 9100
+make prod          # start production stack
+make replay        # stream sample NMEA at localhost:9100
 curl http://127.0.0.1:9200/api/fixes
-# open scripts/test-client.html in a browser, point it at ws://HOST:9200/ws
+# open http://127.0.0.1:9200/ — live monitor with map
 ```
 
 ---
