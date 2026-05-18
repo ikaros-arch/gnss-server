@@ -33,6 +33,13 @@ async function main() {
   await app.listen({ port: cfg.httpPort, host: "0.0.0.0" });
   attachWs(app.server as Server, store, logger.child({ mod: "ws" }));
 
+  // Periodically remove antennas that have been silent for too long.
+  const purgeLog = logger.child({ mod: "store" });
+  setInterval(() => {
+    const removed = store.purge(cfg.antennaPurgeMs);
+    if (removed.length) purgeLog.info({ removed }, "purged stale antennas");
+  }, 60_000).unref();
+
   const shutdown = async (sig: string) => {
     logger.info({ sig }, "shutting down");
     tcp.close();

@@ -6,6 +6,7 @@ const Schema = z.object({
   HTTP_PORT: z.coerce.number().int().positive().default(9200),
   MAX_CONNECTIONS: z.coerce.number().int().positive().default(16),
   TCP_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  ANTENNA_PURGE_MS: z.coerce.number().int().positive().default(15 * 60_000), // 15 min
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   REDACT_IPS: z.string().optional(),
   OUTPUT_CRS: z.string().default("EPSG:32635"),
@@ -19,6 +20,7 @@ export interface Config {
   httpPort: number;
   maxConnections: number;
   tcpIdleTimeoutMs: number;
+  antennaPurgeMs: number;
   logLevel: string;
   redactIps: boolean;
   outputCrs: string;
@@ -36,6 +38,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     httpPort: parsed.HTTP_PORT,
     maxConnections: parsed.MAX_CONNECTIONS,
     tcpIdleTimeoutMs: parsed.TCP_IDLE_TIMEOUT_MS,
+    antennaPurgeMs: parsed.ANTENNA_PURGE_MS,
     logLevel: parsed.LOG_LEVEL,
     redactIps: parsed.REDACT_IPS === "true" || parsed.REDACT_IPS === "1",
     outputCrs: parsed.OUTPUT_CRS,

@@ -20,4 +20,18 @@ export class FixStore extends EventEmitter {
   ids(): string[] {
     return [...this.latest.keys()];
   }
+
+  /** Remove all antennas whose last fix is older than `maxAgeMs` milliseconds.
+   *  Returns the IDs that were removed. */
+  purge(maxAgeMs: number): string[] {
+    const cutoff = Date.now() - maxAgeMs;
+    const removed: string[] = [];
+    for (const [id, fix] of this.latest) {
+      if (new Date(fix.conn.lastByteAt).getTime() < cutoff) {
+        this.latest.delete(id);
+        removed.push(id);
+      }
+    }
+    return removed;
+  }
 }
