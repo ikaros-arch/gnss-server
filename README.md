@@ -210,6 +210,91 @@ curl http://127.0.0.1:9200/api/fixes
 
 ---
 
+## TLS / WSS — reverse proxy termination
+
+The server speaks plain HTTP and `ws://` only. If the web client is served over
+HTTPS the browser will refuse to open a plain `ws://` connection (mixed-content
+block). The standard solution is to put a TLS-terminating reverse proxy in
+front of the server and let the browser connect via `wss://`.
+
+```
+Browser  ──wss://host/gnss/──►  nginx / Caddy  ──ws://localhost:9200/──►  gnss-server
+                  (TLS terminated at proxy)
+```
+
+The server itself needs no changes — it stays on plain HTTP/WS internally.
+
+### nginx
+
+```nginx
+# /etc/nginx/sites-available/gnss
+server {
+    listen 443 ssl;
+    server_name gnss.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/gnss.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/gnss.example.com/privkey.pem;
+
+    # REST API and WebSocket — proxy everything to gnss-server
+    location /gnss/ {
+        proxy_pass         http://localhost:9200/;
+        proxy_http_version 1.1;
+
+        # Required for WebSocket upgrade
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Keep long-lived WS connections open
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+
+# Redirect HTTP → HTTPS
+server {
+    listen 80;
+    server_name gnss.example.com;
+    return 301 https://$host$request_uri;
+}
+```
+
+Then in your frontend, connect to:
+
+```js
+const ws = new WebSocket("wss://gnss.example.com/gnss/ws");
+```
+
+### Caddy
+
+Caddy handles TLS automatically via Let's Encrypt (or ZeroSSL):
+
+```caddy
+# Caddyfile
+gnss.example.com {
+    reverse_proxy /gnss/* localhost:9200 {
+        # Caddy handles the WebSocket upgrade transparently
+        header_up Host {upstream_hostport}
+    }
+}
+```
+
+> **Same-host deployment**: if gnss-server and your main web app run on the
+> same host, you can proxy under a sub-path (e.g. `/gnss/`) as shown above, or
+> use a dedicated subdomain. Either works — just ensure the `proxy_pass` /
+> `reverse_proxy` target matches the container's published port.
+
+> **LAN-only deployment**: if the server is only reachable on a private LAN you
+> can use a self-signed certificate or a private CA, or keep plain `ws://` and
+> serve the SPA over HTTP as well. Mixed-content restrictions only apply when
+> the page itself is loaded over HTTPS.
+
+---
+
 ## Project layout
 
 ```
