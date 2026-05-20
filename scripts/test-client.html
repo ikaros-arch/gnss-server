@@ -64,6 +64,14 @@
       .ant-card:hover { border-color: #3b82f6; }
       .ant-card.active { border-color: #3b82f6; background: #1e2d4a; }
       .ant-card.stale { border-color: #b45309; }
+      .ant-card.inactive {
+        border-color: #2d3748;
+        background: #161a24;
+        opacity: 0.55;
+        filter: grayscale(0.85);
+      }
+      .ant-card.inactive .ant-status { background: #1f1f1f !important; color: #6b7280 !important; }
+      .ant-card.inactive.active { opacity: 0.75; }
       .ant-name { font-weight: 600; font-size: .9rem; margin-bottom: .25rem; }
       .ant-id { font-size: .7rem; color: #64748b; margin-bottom: .5rem; }
       .ant-status {
@@ -233,7 +241,7 @@
       let ws, baseUrl = "", selectedId = null, frames = 0;
       const fixes = {}; // antennaId → latest Fix
       const STALE_MS = 10_000;
-      const PURGE_MS  = 15 * 60 * 1000; // remove after 15 min of inactivity
+      const INACTIVE_MS = 15 * 60 * 1000; // grey out after 15 min of inactivity
       let map = null, mapBoundsFit = false;
       const mapMarkers = {}; // antennaId → { dot, ring }
 
@@ -251,7 +259,7 @@
           setStatus("connected", "ok");
           $("btn-all").style.display = "none";
           setInterval(refreshCards, 2_000);
-          setInterval(purgeStaleAntennas, 60_000); // check once per minute
+          setInterval(refreshInactiveState, 60_000); // refresh staleness/inactive state once per minute
           initMap();
           initRestPanel();
         };
@@ -319,8 +327,14 @@
         const now = Date.now();
         for (const [id, f] of Object.entries(fixes)) {
           const age = now - new Date(f.conn.lastByteAt).getTime();
-          if (age > PURGE_MS) removeAntenna(id);
+          if (age > INACTIVE_MS * 4) removeAntenna(id); // safety net: drop after 1 h
         }
+      }
+
+      // Re-style cards + map markers based on current age (no new fix needed).
+      function refreshInactiveState() {
+        renderCards();
+        for (const f of Object.values(fixes)) updateMap(f);
       }
 
       function renderCards() {
@@ -343,7 +357,11 @@
       function fillCard(card, f) {
         const age = Date.now() - new Date(f.conn.lastByteAt).getTime();
         const stale = age > STALE_MS;
-        card.className = "ant-card" + (f.antennaId === selectedId ? " active" : "") + (stale ? " stale" : "");
+        const inactive = age > INACTIVE_MS;
+        card.className = "ant-card"
+          + (f.antennaId === selectedId ? " active" : "")
+          + (stale && !inactive ? " stale" : "")
+          + (inactive ? " inactive" : "");
         const sigH = f.accuracy?.sigmaLat != null
           ? `±${f.accuracy.sigmaLat.toFixed(3)} m N / ±${f.accuracy.sigmaLon.toFixed(3)} m E`
           : "—";
@@ -574,25 +592,35 @@
       function updateMap(f) {
         if (!map) return;
         const lat = f.llh.lat, lon = f.llh.lon;
-        const color = STATUS_COLORS[f.fix.status] ?? "#6b7280";
+        const age = Date.now() - new Date(f.conn.lastByteAt).getTime();
+        const inactive = age > INACTIVE_MS;
+        const color = inactive ? "#6b7280" : (STATUS_COLORS[f.fix.status] ?? "#6b7280");
+        const fillOpacity = inactive ? 0.35 : 0.85;
+        const strokeOpacity = inactive ? 0.6 : 1;
         const isSelected = f.antennaId === selectedId;
         const labelText = f.label ?? f.antennaId;
         const popup = `<b>${esc(labelText)}</b><br>` +
-          `<span style="font-size:.8rem">${f.fix.status}</span><br>` +
+          `<span style="font-size:.8rem">${f.fix.status}${inactive ? " (inactive)" : ""}</span><br>` +
           `<span style="font-size:.75rem;font-family:monospace">${lat.toFixed(7)}°, ${lon.toFixed(7)}°</span>`;
-        const dotOpts = { radius: isSelected ? 10 : 7, color, fillColor: color, fillOpacity: 0.85, weight: isSelected ? 3 : 2 };
+        const dotOpts = { radius: isSelected ? 10 : 7, color, fillColor: color, fillOpacity, opacity: strokeOpacity, weight: isSelected ? 3 : 2 };
 
         if (mapMarkers[f.antennaId]) {
           const m = mapMarkers[f.antennaId];
           m.dot.setLatLng([lat, lon]);
           m.dot.setRadius(isSelected ? 10 : 7);
-          m.dot.setStyle({ color, fillColor: color, fillOpacity: 0.85, weight: isSelected ? 3 : 2 });
+          m.dot.setStyle({ color, fillColor: color, fillOpacity, opacity: strokeOpacity, weight: isSelected ? 3 : 2 });
           m.dot.getPopup()?.setContent(popup);
           // tooltip follows the circleMarker automatically
           const sigR = f.accuracy?.sigmaLat;
           if (m.ring) {
-            if (sigR != null) { m.ring.setLatLng([lat, lon]).setRadius(Math.max(sigR, 0.02)).setStyle({ color }); }
-          } else if (sigR != null) {
+            if (inactive) {
+              // hide stale accuracy ring — its uncertainty estimate is no longer trustworthy
+              m.ring.remove();
+              m.ring = null;
+            } else if (sigR != null) {
+              m.ring.setLatLng([lat, lon]).setRadius(Math.max(sigR, 0.02)).setStyle({ color });
+            }
+          } else if (!inactive && sigR != null) {
             m.ring = L.circle([lat, lon], { radius: Math.max(sigR, 0.02), color, fillColor: color, fillOpacity: 0.12, weight: 1, dashArray: "4 4" }).addTo(map);
           }
         } else {
@@ -600,7 +628,7 @@
           dot.bindTooltip(labelText, { permanent: true, direction: 'right', className: 'marker-label', offset: [8, 0] });
           dot.on("click", () => selectAntenna(f.antennaId));
           const sigR = f.accuracy?.sigmaLat;
-          const ring = sigR != null
+          const ring = (!inactive && sigR != null)
             ? L.circle([lat, lon], { radius: Math.max(sigR, 0.02), color, fillColor: color, fillOpacity: 0.12, weight: 1, dashArray: "4 4" }).addTo(map)
             : null;
           mapMarkers[f.antennaId] = { dot, ring };
