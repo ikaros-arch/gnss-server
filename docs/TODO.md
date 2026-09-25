@@ -48,3 +48,20 @@ the relevant phase. Keep the order roughly chronological.
 - [x] Pi smoke test against real antennas (3 × Emlid RS, live in production)
 - [x] ~~Push image to registry~~ — builds on server directly; no registry needed
 - [x] ~~systemd unit~~ — not needed; Docker restart policy covers this
+
+## Phase 5 — `gnss-core` package (for the Ikaros iOS app)
+
+The Ikaros native app (hallvard-indgjerd/ikaros-mima#35) needs the NMEA→Fix pipeline
+client-side, fed from a BLE or TCP receiver instead of our TCP listener. `src/nmea/`,
+`src/geodesy/` and `src/store/fix.ts` are already pure (only `proj4`); the Fix assembly in
+`tcp/listener.ts` `handleLine` is the one piece still tied to `node:net`/`pino`.
+
+- [ ] Extract a pure `FixAssembler` (`feed(line: string): Fix | null`, per-connection state,
+      injectable `now()`/`antennaId`) from `handleLine`; `listener.ts` becomes a socket adapter
+- [ ] Move `nmea/*`, `geodesy/*`, `fix.ts`, `FixAssembler` into `packages/core` with its own
+      `package.json` (ESM + `.d.ts`, dependency `proj4` only); gnss-server depends on it
+- [ ] Move the matching vitest tests with the code; `docs/PLAN.md` verification still passes
+- [ ] Publish as public `@ikaros-arch/gnss-core` 0.1.0 (Docker `npm ci` in ikaros-mima needs a
+      public registry package, not a git/file dependency)
+- [ ] README: document the package and the three consumers (this server, Ikaros app, external
+      e.g. AnalyticBase)
