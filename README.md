@@ -298,16 +298,19 @@ gnss.example.com {
 ## Project layout
 
 ```
-src/
+packages/core/         @ikaros-arch/gnss-core — pure NMEA → Fix pipeline (npm workspace,
+  src/nmea/              published so browsers/native shells can reuse it)
+  src/geodesy/         checksum + GGA/GST/GSA/RMC/VTG parsers; ECEF + proj4 wrapper
+  src/fix.ts           the Fix schema; FixAssembler + LineSplitter in assembler.ts
+  test/                unit tests
+src/                   the server (Node)
   config.ts            env parsing + antennas.json loader
   index.ts             entry & wiring
-  nmea/                checksum, parseGGA, parseGST
-  geodesy/             wgs84 (ECEF) + proj (proj4 wrapper for OUTPUT_CRS)
   store/               fixStore (in-memory latest-per-antenna)
-  tcp/                 TCP listener
+  tcp/                 TCP listener → LineSplitter → FixAssembler → store
   rest/                fastify endpoints
   ws/                  WebSocket hub
-test/                  vitest unit tests
+test/fixtures/         sample NMEA for the replay script
 scripts/
   replay-nmea.ts       TCP client to replay NMEA into the listener
   test-client.html     minimal browser WS viewer
@@ -317,6 +320,15 @@ docs/
   PLAN.md              architecture + phased plan
   TODO.md              live task list
 ```
+
+### `@ikaros-arch/gnss-core`
+
+The parsing/normalisation half of this server is a separate, dependency-light package
+(`proj4` only, no Node APIs) so the **same code** can turn a Bluetooth or TCP receiver into
+`Fix` objects inside a browser or the Ikaros iOS app. See
+[packages/core/README.md](packages/core/README.md). `npm install` at the repo root builds
+it; `npm test` runs its tests together with the server's; publish with
+`npm publish -w packages/core --access public`.
 
 ---
 

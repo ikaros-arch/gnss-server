@@ -1,9 +1,13 @@
 # ---- build stage ----
 FROM node:20-alpine AS build
 WORKDIR /app
+# Workspace manifests first so the dependency layer caches; --ignore-scripts
+# because packages/core's `prepare` would try to build before its sources exist.
 COPY package.json package-lock.json* ./
-RUN npm install --no-audit --no-fund
+COPY packages/core/package.json ./packages/core/
+RUN npm install --no-audit --no-fund --ignore-scripts
 COPY tsconfig.json ./
+COPY packages/core ./packages/core
 COPY src ./src
 RUN npm run build
 
@@ -12,7 +16,10 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json* ./
-RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
+COPY packages/core/package.json ./packages/core/
+RUN npm install --omit=dev --no-audit --no-fund --ignore-scripts && npm cache clean --force
+# node_modules/@ikaros-arch/gnss-core is a symlink into packages/core, so ship its dist.
+COPY --from=build /app/packages/core/dist ./packages/core/dist
 COPY --from=build /app/dist ./dist
 COPY scripts/test-client.html ./scripts/test-client.html
 

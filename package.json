@@ -7,24 +7,27 @@
   "engines": {
     "node": ">=20"
   },
+  "workspaces": [
+    "packages/core"
+  ],
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "dev": "npm run build:core && tsx watch src/index.ts",
+    "build:core": "npm run build -w packages/core",
+    "build": "npm run build:core && tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "replay": "tsx scripts/replay-nmea.ts"
   },
   "dependencies": {
+    "@ikaros-arch/gnss-core": "^0.1.0",
     "fastify": "^4.28.1",
     "pino": "^9.4.0",
-    "proj4": "^2.11.0",
     "ws": "^8.18.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
-    "@types/proj4": "^2.5.5",
     "@types/ws": "^8.5.12",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",

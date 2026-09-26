@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { Fix } from "./fix.js";
+import type { Fix } from "@ikaros-arch/gnss-core";
 
 export class FixStore extends EventEmitter {
   private latest = new Map<string, Fix>();

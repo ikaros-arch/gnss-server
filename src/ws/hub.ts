@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
 import type { Logger } from "pino";
 import type { FixStore } from "../store/fixStore.js";
-import type { Fix } from "../store/fix.js";
+import type { Fix } from "@ikaros-arch/gnss-core";
 
 export function attachWs(httpServer: Server, store: FixStore, logger: Logger) {
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });

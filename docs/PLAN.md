@@ -31,13 +31,17 @@ Antennas ──TCP/NMEA──▶ TcpListener ──▶ NmeaParser ──▶ FixS
 Modules:
 
 - `config` — env vars (zod) + optional `antennas.json` (IP → id map).
-- `nmea/checksum` — XOR checksum verification.
-- `nmea/parseGGA` — position + fix quality + satellites + HDOP + altitude.
-- `nmea/parseGST` — 1-σ accuracy in metres.
-- `geodesy/wgs84` — LLH → ECEF (XYZ).
-- `geodesy/proj` — `proj4` wrapper; default target CRS **EPSG:32635**.
+- **`packages/core` (`@ikaros-arch/gnss-core`, pure, published):**
+  - `nmea/checksum` — XOR checksum verification.
+  - `nmea/parseGGA` — position + fix quality + satellites + HDOP + altitude.
+  - `nmea/parseGST` — 1-σ accuracy in metres. (+ `parseGSA`, `parseRMC`, `parseVTG`.)
+  - `geodesy/wgs84` — LLH → ECEF (XYZ).
+  - `geodesy/proj` — `proj4` wrapper; default target CRS **EPSG:32635**.
+  - `fix` — the `Fix` wire schema.
+  - `assembler` — `FixAssembler` (sentences → `Fix`), `LineSplitter` (chunks → lines).
 - `store/fixStore` — `Map<antennaId, Fix>` + `EventEmitter`.
-- `tcp/listener` — `net.createServer`, line buffering, antenna ID resolution.
+- `tcp/listener` — `net.createServer`, antenna ID resolution, one `LineSplitter` +
+  `FixAssembler` per connection.
 - `rest/api` — fastify routes.
 - `ws/hub` — WebSocket on `/ws`, snapshot-on-connect + push-per-fix.
 - `index` — wiring & graceful shutdown.

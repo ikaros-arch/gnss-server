@@ -9,3 +9,7 @@ coverage
 .DS_Store
 docs
 test
+
+# nested workspace build/deps (rebuilt inside the image)
+**/node_modules
+**/dist

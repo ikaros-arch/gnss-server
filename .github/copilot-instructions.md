@@ -38,20 +38,30 @@ A Node.js 20 + TypeScript service that:
 ## Layout
 
 ```
-src/
+packages/core/         @ikaros-arch/gnss-core — the PURE part, published to npm
+  src/nmea/            checksum, parseGGA/GST/GSA/RMC/VTG  (no I/O)
+  src/geodesy/         wgs84.ts (ECEF), proj.ts (proj4 wrapper)
+  src/fix.ts           the Fix wire schema
+  src/assembler.ts     FixAssembler (sentences → Fix), LineSplitter (chunks → lines)
+  test/                vitest unit tests for all of the above
+src/                   the server — Node-only
   config.ts            env parsing + antennas.json loader (zod-validated)
   index.ts             entry & wiring
-  nmea/                checksum, parseGGA, parseGST  (pure functions, no I/O)
-  geodesy/             wgs84.ts (ECEF), proj.ts (proj4 wrapper)
-  store/               fix.ts (types), fixStore.ts (Map + EventEmitter)
-  tcp/                 listener.ts
+  store/               fixStore.ts (Map + EventEmitter)
+  tcp/                 listener.ts (sockets → LineSplitter → FixAssembler → store)
   rest/                api.ts (fastify)
   ws/                  hub.ts (ws server attached to fastify's http server)
-test/                  vitest unit tests
+test/fixtures/         sample NMEA for the replay script
 scripts/               replay-nmea.ts, test-client.html
 config/                antennas.example.json (IP → {id,label})
 docs/                  PLAN.md, TODO.md
 ```
+
+`packages/core` is an npm **workspace**; the server depends on it as
+`@ikaros-arch/gnss-core`. Anything that would need `node:*` or `pino` does not
+belong in it — it must keep running in a browser/WebView (the Ikaros iOS app
+consumes it for BLE/TCP receivers). `vitest.config.ts` aliases the package to
+its source so tests need no build; `npm run build`/`dev` build core first.
 
 ## Workflow rules
 
@@ -66,7 +76,7 @@ docs/                  PLAN.md, TODO.md
   ENU output, no DB, no auth, no NTRIP/RTCM, no integration into the Go iDig
   server in the sibling repo.
 - **CRS is configurable but defaults to EPSG:32635**. Don't hard-code other
-  EPSG codes in business logic; route through `geodesy/proj.ts`.
+  EPSG codes in business logic; route through `packages/core/src/geodesy/proj.ts`.
 - **Don't run the service on the dev box for prod-like tests** — use
   `docker compose up --build`. Targets are Linux x86-64 and Raspberry Pi
   (ARM64); use `docker buildx --platform linux/amd64,linux/arm64` for releases.
@@ -81,28 +91,32 @@ docs/                  PLAN.md, TODO.md
 > **Have the user run these on the server, not the local dev machine** (no `node_modules` locally).
 
 ```bash
-npm install
-npm test                 # vitest unit tests
-npm run dev              # tsx watch on src/index.ts
+npm install              # also builds packages/core via its prepare script
+npm test                 # vitest unit tests (server + packages/core)
+npm run dev              # builds core, then tsx watch on src/index.ts
 npm run replay           # stream sample NMEA at 127.0.0.1:9100
 docker compose up --build
+npm publish -w packages/core --access public   # release @ikaros-arch/gnss-core
 ```
 
 ## When asked to add a new NMEA sentence parser
 
-1. Add a pure function `src/nmea/parseXXX.ts` returning a typed object or `null`.
+1. Add a pure function `packages/core/src/nmea/parseXXX.ts` returning a typed
+   object or `null`, and export it from `packages/core/src/index.ts`.
 2. Verify the checksum via `verifyChecksum` first.
-3. Add a unit test in `test/nmea.test.ts` (or a sibling file) with a real
-   fixture sentence.
-4. Wire it into `src/tcp/listener.ts` only if the data lands in the `Fix`
-   schema; otherwise leave parser unused but exported.
+3. Add a unit test in `packages/core/test/nmea.test.ts` (or a sibling file)
+   with a real fixture sentence.
+4. Fold it into `FixAssembler.feed()` only if the data lands in the `Fix`
+   schema; otherwise leave the parser unused but exported.
 
 ## When asked to add a new output field
 
-1. Extend `Fix` in `src/store/fix.ts`.
-2. Populate it in `src/tcp/listener.ts`.
-3. Update the schema example in `README.md` and the verification matrix in
-   `docs/PLAN.md` if relevant.
+1. Extend `Fix` in `packages/core/src/fix.ts`.
+2. Populate it in `FixAssembler.feed()` (`packages/core/src/assembler.ts`) and
+   cover it in `packages/core/test/assembler.test.ts`.
+3. Update the schema in `docs/FRONTEND_INTEGRATION.md`, the example in
+   `README.md`, and the verification matrix in `docs/PLAN.md` if relevant.
+4. Bump `packages/core/package.json` version — consumers pin it.
 
 ## What NOT to do
 
