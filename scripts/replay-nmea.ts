@@ -7,7 +7,7 @@ import { readFileSync, existsSync } from "node:fs";
 
 const SAMPLES = [
   "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47",
-  "$GPGST,123519,1.5,1.2,0.9,0.0,0.8,1.0,1.4*70",
+  "$GPGST,123519,1.5,1.2,0.9,0.0,0.8,1.0,1.4*76",
 ];
 
 const [, , hostArg, portArg, fileArg, hzArg] = process.argv;

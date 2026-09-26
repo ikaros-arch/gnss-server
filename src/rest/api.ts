@@ -13,13 +13,13 @@ const clientHtml = (() => {
 })();
 
 export function buildRest(store: FixStore, logger: Logger, outputCrs: string) {
-  const app = Fastify({ logger: logger as any });
+  const app = Fastify({ loggerInstance: logger });
 
   // Allow cross-origin requests (LAN-only service, read-only GET endpoints).
   app.addHook("onSend", async (_req, reply) => {
     reply.header("Access-Control-Allow-Origin", "*");
   });
-  app.options("*", async (_req, reply) => {
+  app.options("/*", async (_req, reply) => {
     reply.header("Access-Control-Allow-Origin", "*");
     reply.header("Access-Control-Allow-Methods", "GET, OPTIONS");
     return reply.code(204).send();

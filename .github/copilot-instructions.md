@@ -6,7 +6,7 @@ making non-trivial changes.
 
 ## What this project is
 
-A Node.js 20 + TypeScript service that:
+A Node.js 22 + TypeScript service that:
 
 1. Listens on a TCP port (default **9100**) for incoming **NMEA-0183**
    sentences from one or more GNSS antennas (the antennas dial in to us).
@@ -22,11 +22,11 @@ A Node.js 20 + TypeScript service that:
 
 ## Stack & conventions
 
-- **Runtime**: Node.js 20 LTS, ESM (`"type": "module"`), TypeScript strict.
+- **Runtime**: Node.js 22 LTS, ESM (`"type": "module"`), TypeScript strict.
 - **Libraries**: `fastify` (REST), `ws` (WebSocket), `pino` (logging),
   `zod` (config), `proj4` (CRS reprojection). Built-in `node:net` for TCP.
 - **Tests**: `vitest`. Tests live in `test/` and import from `../src/...js`
-  (note the `.js` extension required by the ESM resolver under `tsx`/Node 20).
+  (note the `.js` extension required by the ESM resolver under `tsx`/Node 22).
 - **No frameworks creep**: do not introduce ORMs, message queues, or auth
   middleware unless explicitly requested. The deployment is LAN-only.
 - **No persistence**: latest fix per antenna only, in-memory.

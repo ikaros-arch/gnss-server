@@ -101,7 +101,7 @@ definition works.
 
 ## Decisions (locked)
 
-- Node.js 20 + TypeScript; `fastify` + `ws`; `proj4` for CRS.
+- Node.js 22 + TypeScript; `fastify` 5 + `ws`; `proj4` for CRS.
 - NMEA-only input; JSON over WS+REST output.
 - Service is the TCP **server**.
 - ≤10 antennas, latest fix only, no DB.
