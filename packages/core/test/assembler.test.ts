@@ -3,7 +3,7 @@ import { FixAssembler, LineSplitter } from "../src/assembler.js";
 
 // The same five sentences as test/fixtures/sample.nmea at the repo root.
 const GGA = "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47";
-const GST = "$GPGST,123519,1.5,1.2,0.9,0.0,0.8,1.0,1.4*70";
+const GST = "$GPGST,123519,1.5,1.2,0.9,0.0,0.8,1.0,1.4*76";
 const GSA = "$GPGSA,A,3,04,05,09,12,,,,,,,,,3.6,2.1,2.2*3F";
 const RMC = "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A";
 const VTG = "$GPVTG,054.7,T,034.4,M,022.4,N,041.5,K,A*22";

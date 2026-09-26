@@ -326,8 +326,8 @@ docs/
 The parsing/normalisation half of this server is a separate, dependency-light package
 (`proj4` only, no Node APIs) so the **same code** can turn a Bluetooth or TCP receiver into
 `Fix` objects inside a browser or the Ikaros iOS app. See
-[packages/core/README.md](packages/core/README.md). `npm install` at the repo root builds
-it; `npm test` runs its tests together with the server's; publish with
+[packages/core/README.md](packages/core/README.md). `npm test` runs its tests together with
+the server's straight from source; `npm run build` builds it before the server; publish with
 `npm publish -w packages/core --access public`.
 
 ---

@@ -21,7 +21,7 @@
   "files": ["dist", "README.md"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepare": "npm run build"
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "proj4": "^2.11.0"

@@ -52,4 +52,4 @@ constructing the assembler. `projectLonLat` throws for an unregistered code.
 
 Lives in the `packages/core` workspace of gnss-server. From the repo root:
 `npm test` (vitest resolves the package from source), `npm run build:core`,
-`npm publish -w packages/core --access public`.
+`npm publish -w packages/core --access public` (builds via `prepublishOnly`).

@@ -91,8 +91,8 @@ its source so tests need no build; `npm run build`/`dev` build core first.
 > **Have the user run these on the server, not the local dev machine** (no `node_modules` locally).
 
 ```bash
-npm install              # also builds packages/core via its prepare script
-npm test                 # vitest unit tests (server + packages/core)
+npm install              # deps only; core is built by `npm run build` / `npm run dev`
+npm test                 # vitest unit tests (server + packages/core), no build needed
 npm run dev              # builds core, then tsx watch on src/index.ts
 npm run replay           # stream sample NMEA at 127.0.0.1:9100
 docker compose up --build
