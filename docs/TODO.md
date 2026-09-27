@@ -65,7 +65,8 @@ client-side, fed from a BLE or TCP receiver instead of our TCP listener. `src/nm
 - [x] Move the matching vitest tests with the code; `docs/PLAN.md` verification still passes
       (2026-09-26 — tests moved + `assembler.test.ts` added; **run `npm install && npm test`
       and `docker compose build` on the server to confirm**)
-- [ ] Publish as public `@ikaros-arch/gnss-core` 0.1.0 (Docker `npm ci` in ikaros-mima needs a
-      public registry package, not a git/file dependency) — needs the `ikaros-arch` npm org
+- [x] Publish as public `@ikaros-arch/gnss-core` 0.1.0 (Docker `npm ci` in ikaros-mima needs a
+      public registry package, not a git/file dependency) (2026-09-27 — verified with a scratch
+      `npm i` + chunked GST/GGA → Fix run)
 - [x] README: document the package and the three consumers (this server, Ikaros app, external
       e.g. AnalyticBase) (2026-09-26)
