@@ -5,3 +5,8 @@ coverage/
 .env
 .env.local
 .DS_Store
+
+# firmware tooling (PlatformIO)
+firmware/.venv/
+firmware/**/.pio/
+firmware/**/secrets.h
